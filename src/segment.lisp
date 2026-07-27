@@ -160,48 +160,53 @@ indicator and (for data modes) the character count indicator."
     (16 (write-bits stream (logior #x8000 value) 16))
     (24 (write-bits stream (logior #xC00000 value) 24))))
 
+(defun write-segment-payload (stream segment)
+  "Emit only the data payload of SEGMENT (no mode indicator or character count).
+Shared by the QR and Micro QR encoders, which use different headers."
+  (ecase (segment-mode segment)
+    (:numeric
+     (let ((s (segment-data segment)))
+       (loop for i from 0 below (length s) by 3
+             for chunk = (subseq s i (min (+ i 3) (length s)))
+             do (write-bits stream (parse-integer chunk)
+                            (case (length chunk) (3 10) (2 7) (1 4))))))
+    (:alphanumeric
+     (let ((s (segment-data segment)))
+       (loop for i from 0 below (length s) by 2
+             do (if (= (1+ i) (length s))
+                    (write-bits stream (alphanumeric-value (char s i)) 6)
+                    (write-bits stream
+                                (+ (* 45 (alphanumeric-value (char s i)))
+                                   (alphanumeric-value (char s (1+ i))))
+                                11)))))
+    (:byte
+     (loop for b across (segment-data segment) do (write-bits stream b 8)))
+    (:kanji
+     (loop for v across (segment-data segment)
+           for adjusted = (cond ((<= #x8140 v #x9FFC) (- v #x8140))
+                                ((<= #xE040 v #xEBBF) (- v #xC140))
+                                (t (error 'invalid-mode
+                                          :datum "value outside Shift-JIS Kanji range")))
+           do (write-bits stream
+                          (+ (* (ldb (byte 8 8) adjusted) #xC0)
+                             (ldb (byte 8 0) adjusted))
+                          13)))
+    (:eci (write-eci-designator stream (segment-data segment)))
+    (:fnc1-first)                       ; mode indicator only, nothing further
+    (:fnc1-second (write-bits stream (segment-data segment) 8))
+    (:structured-append
+     (destructuring-bind (index total parity) (segment-data segment)
+       ;; Symbol sequence indicator: position (0-based) then (total - 1).
+       (write-bits stream (logior (ash index 4) (1- total)) 8)
+       (write-bits stream parity 8)))))
+
 (defun write-segment (stream segment version)
   "Emit SEGMENT (mode indicator, character count and data) into STREAM."
   (let ((mode (segment-mode segment)))
     (write-bits stream (mode-indicator mode) 4)
     (unless (member mode +header-modes+)
       (write-bits stream (segment-count segment) (char-count-bits mode version)))
-    (ecase mode
-      (:numeric
-       (let ((s (segment-data segment)))
-         (loop for i from 0 below (length s) by 3
-               for chunk = (subseq s i (min (+ i 3) (length s)))
-               do (write-bits stream (parse-integer chunk)
-                              (case (length chunk) (3 10) (2 7) (1 4))))))
-      (:alphanumeric
-       (let ((s (segment-data segment)))
-         (loop for i from 0 below (length s) by 2
-               do (if (= (1+ i) (length s))
-                      (write-bits stream (alphanumeric-value (char s i)) 6)
-                      (write-bits stream
-                                  (+ (* 45 (alphanumeric-value (char s i)))
-                                     (alphanumeric-value (char s (1+ i))))
-                                  11)))))
-      (:byte
-       (loop for b across (segment-data segment) do (write-bits stream b 8)))
-      (:kanji
-       (loop for v across (segment-data segment)
-             for adjusted = (cond ((<= #x8140 v #x9FFC) (- v #x8140))
-                                  ((<= #xE040 v #xEBBF) (- v #xC140))
-                                  (t (error 'invalid-mode
-                                            :datum "value outside Shift-JIS Kanji range")))
-             do (write-bits stream
-                            (+ (* (ldb (byte 8 8) adjusted) #xC0)
-                               (ldb (byte 8 0) adjusted))
-                            13)))
-      (:eci (write-eci-designator stream (segment-data segment)))
-      (:fnc1-first)                     ; mode indicator only, nothing further
-      (:fnc1-second (write-bits stream (segment-data segment) 8))
-      (:structured-append
-       (destructuring-bind (index total parity) (segment-data segment)
-         ;; Symbol sequence indicator: position (0-based) then (total - 1).
-         (write-bits stream (logior (ash index 4) (1- total)) 8)
-         (write-bits stream parity 8))))
+    (write-segment-payload stream segment)
     stream))
 
 ;;; ---------------------------------------------------------------------------

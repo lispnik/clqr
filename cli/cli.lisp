@@ -65,6 +65,9 @@
     :integer :description "emit a Structured Append sequence of N symbols (2-16)"
     :long-name "structured-append" :key :structured-append)
    (clingon:make-option
+    :flag :description "encode a Micro QR symbol (M1-M4)"
+    :long-name "micro" :key :micro)
+   (clingon:make-option
     :enum :description "output format"
     :short-name #\f :long-name "format" :initial-value "text"
     :items '(("text" . :text) ("svg" . :svg) ("pbm" . :pbm))
@@ -166,9 +169,9 @@ character or binary per BINARY."
              :format (clingon:getopt cmd :pbm-format))))))
 
 (defun summarise (qr &optional index count)
-  (format *error-output* "clqr: ~Aversion ~D, EC ~A, mask ~D, ~D modules~%"
+  (format *error-output* "clqr: ~Aversion ~:[~;M~]~D, EC ~A, mask ~D, ~D modules~%"
           (if index (format nil "[~D/~D] " index count) "")
-          (clqr:qr-version qr) (clqr:qr-error-correction qr)
+          (clqr:qr-micro-p qr) (clqr:qr-version qr) (clqr:qr-error-correction qr)
           (clqr:qr-mask qr) (clqr:qr-size qr)))
 
 (defun run-encode (cmd)
@@ -178,8 +181,10 @@ character or binary per BINARY."
                       (read-stream-content *standard-input*)
                       content-arg))
          (ecl (clingon:getopt cmd :error-correction))
-         (version (parse-auto-integer (clingon:getopt cmd :qr-version) "version" 1 40))
-         (mask (parse-auto-integer (clingon:getopt cmd :mask) "mask" 0 7))
+         (micro (clingon:getopt cmd :micro))
+         (version (parse-auto-integer (clingon:getopt cmd :qr-version) "version"
+                                      1 (if micro 4 40)))
+         (mask (parse-auto-integer (clingon:getopt cmd :mask) "mask" 0 (if micro 3 7)))
          (mode-opt (clingon:getopt cmd :mode))
          (mode (unless (eq mode-opt :auto) mode-opt))
          (eci (clingon:getopt cmd :eci))
@@ -188,7 +193,15 @@ character or binary per BINARY."
          (output (clingon:getopt cmd :output))
          (binary (binary-output-p format (clingon:getopt cmd :pbm-format)))
          (sa (clingon:getopt cmd :structured-append)))
+    (when (and micro (or eci fnc1 (and sa (>= sa 2))))
+      (error "Micro QR does not support ECI, FNC1 or Structured Append."))
     (cond
+      (micro
+       (let ((qr (clqr:encode-micro content :error-correction ecl :version version
+                                            :mask mask :mode mode)))
+         (with-output-stream (stream output binary)
+           (render-symbol cmd qr stream))
+         (summarise qr)))
       ((and sa (>= sa 2))
        ;; Structured Append: one symbol per piece.
        (when (and (null output) binary)
@@ -245,7 +258,9 @@ character or binary per BINARY."
                ("Encode a GS1 code with an FNC1 header:"
                 . "clqr --fnc1 gs1 0112345678901231")
                ("Split a long message into 3 Structured Append SVGs:"
-                . "clqr --structured-append 3 -f svg -o msg.svg \"…long text…\""))))
+                . "clqr --structured-append 3 -f svg -o msg.svg \"…long text…\"")
+               ("Encode a Micro QR symbol:"
+                . "clqr --micro -f svg -o m.svg 01234567"))))
 
 (defun main ()
   (clingon:run (command)))

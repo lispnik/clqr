@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   UTF-8) and Kanji (Shift-JIS) modes plus ECI. Micro QR is not supported.
 - FNC1 headers (GS1 first position and AIM second position) via `:fnc1`, and
   Structured Append multi-symbol sequences via `encode-structured-append`.
+- Micro QR (M1–M4) via `encode-micro` and the `--micro` CLI flag.
 - Optimal mixed-mode segmentation: the input is split across Numeric,
   Alphanumeric, Byte and Kanji runs to minimise the encoded size (Japanese text
   auto-selects Kanji mode). Kanji mode and a UTF-8 byte ECI are never mixed, so

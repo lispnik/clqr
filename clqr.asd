@@ -19,7 +19,8 @@
                              (:file "segment")
                              (:file "reed-solomon")
                              (:file "matrix")
-                             (:file "qr")))
+                             (:file "qr")
+                             (:file "micro")))
                (:module "render"
                 :serial t
                 :components ((:file "render")
@@ -57,6 +58,7 @@
                              (:file "galois-tests")
                              (:file "segment-tests")
                              (:file "encode-tests")
+                             (:file "micro-tests")
                              (:file "render-tests"))))
   :perform (test-op (op c)
              (uiop:symbol-call :clqr.test :run-tests)))

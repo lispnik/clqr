@@ -20,8 +20,10 @@ MODULES           a (simple-array bit (size size)); 1 = dark, 0 = light."
   (error-correction :m :read-only t)
   (mask 0 :type (integer 0 7) :read-only t)
   (mode nil :read-only t)
-  (size 21 :type (integer 21 177) :read-only t)
-  (modules nil :type (simple-array bit (* *)) :read-only t))
+  (size 21 :type (integer 11 177) :read-only t)
+  (modules nil :type (simple-array bit (* *)) :read-only t)
+  ;; True for Micro QR (M1-M4) symbols; NIL for standard QR.
+  (micro nil :read-only t))
 
 (declaim (inline qr-module))
 (defun qr-module (qr row col)
@@ -34,7 +36,8 @@ MODULES           a (simple-array bit (size size)); 1 = dark, 0 = light."
       (fdefinition 'qr-mask) #'qr-code-mask
       (fdefinition 'qr-mode) #'qr-code-mode
       (fdefinition 'qr-size) #'qr-code-size
-      (fdefinition 'qr-modules) #'qr-code-modules)
+      (fdefinition 'qr-modules) #'qr-code-modules
+      (fdefinition 'qr-micro-p) #'qr-code-micro)
 
 (defun map-modules (qr function)
   "Call FUNCTION with (ROW COL DARK-P) for every module of QR, row by row.

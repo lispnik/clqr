@@ -16,8 +16,9 @@
   (:documentation
    "Pure Common Lisp, ISO/IEC 18004 conformant QR code encoder (model).")
   (:export
-   ;; High level entry point
+   ;; High level entry points
    #:encode
+   #:encode-micro
    ;; The model object and its readers
    #:qr-code
    #:qr-code-p
@@ -28,6 +29,7 @@
    #:qr-size
    #:qr-modules
    #:qr-module
+   #:qr-micro-p
    #:map-modules
    ;; Structured Append (multi-symbol sequences)
    #:encode-structured-append

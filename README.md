@@ -1,7 +1,7 @@
 # clqr
 
-A pure Common Lisp **QR Code encoder** for Model 2 symbols, following
-[ISO/IEC 18004](https://www.iso.org/standard/62021.html).
+A pure Common Lisp **QR Code encoder** for Model 2 and Micro QR symbols,
+following [ISO/IEC 18004](https://www.iso.org/standard/62021.html).
 
 `clqr` has no external dependencies for its core: it computes the entire symbol —
 Galois field arithmetic, Reed-Solomon error correction, block interleaving,
@@ -21,11 +21,21 @@ API.
   symbol is self-describing rather than relying on the reader to guess.
 - All eight data masks with ISO penalty scoring (or force a mask).
 - **FNC1** (GS1 and AIM) headers and **Structured Append** (multi-symbol) sequences.
+- **Micro QR** (M1–M4) via `encode-micro`.
 - Renderers: **Unicode/ASCII** text, **SVG**, and **netpbm PBM** (P1 and P4).
 
-### Scope
+### Micro QR
 
-`clqr` targets standard (Model 2) QR symbols. It does **not** implement Micro QR.
+```lisp
+(clqr:encode-micro "01234567")                     ; smallest fitting M1-M4
+(clqr:encode-micro "HELLO" :version 3 :error-correction :m)
+```
+
+`encode-micro` returns a `qr-code` with `qr-micro-p` true; the renderers work
+unchanged. Micro QR has error levels `:l :m :q` (no `:h`; M1 is error-detection
+only, `:l`), versions 1–4 (M1–M4), and does not support ECI, FNC1 or Structured
+Append. On the CLI, add `--micro`.
+
 You can also build segments by hand for full control (see `encode-segments` below).
 
 ```

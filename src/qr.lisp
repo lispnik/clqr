@@ -79,19 +79,11 @@ CLQR:INVALID-MODE for bad arguments."
                             (auto-segments content)))
          (segments (if eci
                        (cons (make-eci-segment eci) base-segments)
-                       base-segments))
-         (ver (choose-version segments error-correction version))
-         (data (segments-to-data-codewords segments ver error-correction))
-         (final (make-final-message data ver error-correction)))
-    (multiple-value-bind (modules chosen-mask)
-        (build-matrix final ver error-correction mask)
-      (%make-qr-code
-       :version ver
-       :error-correction error-correction
-       :mask chosen-mask
-       :mode (remove-duplicates (mapcar #'segment-mode base-segments))
-       :size (module-count ver)
-       :modules modules))))
+                       base-segments)))
+    ;; The whole encoding pipeline lives in ENCODE-SEGMENTS; it already drops
+    ;; the :eci mode from the recorded mode list.
+    (encode-segments segments :error-correction error-correction
+                              :version version :mask mask)))
 
 (defun encode-segments (segments &key (error-correction :m) version mask)
   "Encode an explicit list of SEGMENTS (see MAKE-*-SEGMENT) into a QR-CODE.

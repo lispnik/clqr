@@ -15,9 +15,12 @@ Returns QR."
   (let* ((size (qr-size qr))
          (dim (+ size (* 2 quiet-zone))))
     (flet ((dark (row col)
-             (let ((d (and (< row dim)
-                           (grid-dark-p qr quiet-zone row col))))
-               (if invert (not d) d))))
+             ;; Positions outside the grid (the phantom row that pairs with the
+             ;; final module row when DIM is odd) are always light, even under
+             ;; INVERT, so the bottom border matches the top.
+             (and (< row dim)
+                  (let ((d (grid-dark-p qr quiet-zone row col)))
+                    (if invert (not d) d)))))
       (ecase style
         (:ascii
          (dotimes (row dim)

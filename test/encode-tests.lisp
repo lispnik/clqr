@@ -60,6 +60,16 @@
     (clqr:encode (make-string 100 :initial-element #\a)
                  :error-correction :h :version 1)))
 
+(test data-too-long-report-is-clean
+  "The DATA-TOO-LONG report never hits an unbound slot (its slots default to
+NIL), so printing the condition works."
+  (handler-case
+      (progn (clqr:encode (make-string 100 :initial-element #\a)
+                          :error-correction :h :version 1)
+             (fail "expected data-too-long"))
+    (clqr:data-too-long (e)
+      (is (stringp (princ-to-string e))))))
+
 ;;; A golden full-symbol matrix for numeric "01234567" at version 1-M with a
 ;;; forced mask 0.  This exact matrix was cross-checked against an independent
 ;;; reference encoder and decoded by ZXing.

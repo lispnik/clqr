@@ -62,7 +62,8 @@ per character) when every character fits in a single byte, otherwise UTF-8."
 (defun make-numeric-segment (string)
   "Create a numeric-mode segment from STRING, which must contain only the
 digits 0-9."
-  (unless (every (lambda (c) (char<= #\0 c #\9)) string)
+  (unless (and (typep string 'sequence)
+               (every (lambda (c) (and (characterp c) (char<= #\0 c #\9))) string))
     (error 'invalid-mode :datum "numeric segment requires digits 0-9 only"))
   (%make-segment :mode :numeric :data (coerce string 'string) :count (length string)))
 
@@ -98,6 +99,10 @@ or a sequence of (unsigned-byte 16) Shift-JIS double-byte values."
 ;;; Bit length
 ;;; ---------------------------------------------------------------------------
 
+(defun eci-designator-bits (value)
+  "Width in bits of the ECI designator encoding VALUE (ISO 8.4.1.1)."
+  (cond ((< value #x80) 8) ((< value #x4000) 16) (t 24)))
+
 (defun segment-data-bits (segment)
   "Number of bits in the data portion of SEGMENT (excluding mode indicator and
 character count indicator)."
@@ -108,8 +113,7 @@ character count indicator)."
       (:alphanumeric (+ (* 11 (floor n 2)) (* 6 (mod n 2))))
       (:byte (* 8 n))
       (:kanji (* 13 n))
-      (:eci (let ((v (segment-data segment)))
-              (cond ((< v #x80) 8) ((< v #x4000) 16) (t 24)))))))
+      (:eci (eci-designator-bits (segment-data segment))))))
 
 (defun segment-bits (segment version)
   "Total number of bits SEGMENT occupies at VERSION, including the mode
@@ -128,9 +132,10 @@ indicator and (except for ECI) the character count indicator."
 ;;; ---------------------------------------------------------------------------
 
 (defun write-eci-designator (stream value)
-  (cond ((< value #x80) (write-bits stream value 8))
-        ((< value #x4000) (write-bits stream (logior #x8000 value) 16))
-        (t (write-bits stream (logior #xC00000 value) 24))))
+  (ecase (eci-designator-bits value)
+    (8 (write-bits stream value 8))
+    (16 (write-bits stream (logior #x8000 value) 16))
+    (24 (write-bits stream (logior #xC00000 value) 24))))
 
 (defun write-segment (stream segment version)
   "Emit SEGMENT (mode indicator, character count and data) into STREAM."

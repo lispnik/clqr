@@ -55,8 +55,3 @@ table is unavailable)."
              (error 'invalid-mode
                     :datum (format nil "character ~S is not encodable in Kanji mode" ch))))
        string))
-
-(defun kanji-encodable-p (string)
-  "True if every character of STRING can be encoded in Kanji mode."
-  (and (plusp (length string))
-       (every #'shift-jis-value string)))

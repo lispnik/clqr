@@ -56,7 +56,7 @@ STREAM holds exactly DATA-CODEWORDS codewords.  STREAM must not already exceed
 the capacity."
   (let ((capacity-bits (* 8 data-codewords)))
     (assert (<= (bit-stream-length stream) capacity-bits) ()
-            'data-too-long)
+            'data-too-long :content-bits (bit-stream-length stream))
     ;; Terminator: up to four 0 bits, but never past capacity.
     (let ((terminator (min 4 (- capacity-bits (bit-stream-length stream)))))
       (dotimes (i terminator) (write-bit stream 0)))

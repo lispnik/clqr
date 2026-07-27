@@ -24,6 +24,20 @@
          (lines (count #\Newline out)))
     (is (= (ceiling dim 2) lines))))
 
+(test render-text-invert-no-phantom-row
+  "Under :invert the out-of-grid phantom row stays light, so the final line is
+made of upper-half blocks, never full blocks."
+  (let* ((qr (clqr:encode "01234567"))
+         (qz 4)
+         (dim (+ (clqr:qr-size qr) (* 2 qz)))
+         (out (render-to-string #'clqr.render:render-text qr
+                                :quiet-zone qz :invert t))
+         (lines (remove "" (uiop:split-string out :separator '(#\Newline))
+                        :test #'string=)))
+    (is (= (ceiling dim 2) (count #\Newline out)))
+    (is (not (find #\FULL_BLOCK (car (last lines))))
+        "final line must not contain a phantom full block")))
+
 (test render-svg-structure
   (let ((out (render-to-string #'clqr.render:render-svg (clqr:encode "svg test"))))
     (is (search "<svg" out))

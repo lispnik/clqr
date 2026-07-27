@@ -35,6 +35,12 @@
   (signals clqr:invalid-mode (clqr:make-numeric-segment "12A"))
   (signals clqr:invalid-mode (clqr:make-alphanumeric-segment "ab")))
 
+(test forced-numeric-on-bytes-signals-invalid-mode
+  "Forcing :numeric on a byte sequence signals CLQR:INVALID-MODE, not a raw
+type-error."
+  (signals clqr:invalid-mode (clqr:make-numeric-segment #(48 49 50)))
+  (signals clqr:invalid-mode (clqr:encode #(48 49 50) :mode :numeric)))
+
 (test string-to-bytes-encoding
   ;; ISO-8859-1 (one byte per character) while every character fits in a byte,
   ;; including Latin-1 characters such as é (U+00E9 = 233) ...

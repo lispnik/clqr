@@ -18,9 +18,10 @@
   (:documentation "Base class for all errors signalled by clqr."))
 
 (define-condition data-too-long (clqr-error)
-  ((content-bits :initarg :content-bits :reader data-too-long-content-bits)
-   (version :initarg :version :reader data-too-long-version)
-   (error-correction :initarg :error-correction
+  ((content-bits :initarg :content-bits :initform nil
+                 :reader data-too-long-content-bits)
+   (version :initarg :version :initform nil :reader data-too-long-version)
+   (error-correction :initarg :error-correction :initform nil
                      :reader data-too-long-error-correction))
   (:report (lambda (c s)
              (format s "Data (~D bits) does not fit ~@[in version ~D ~]at error correction level ~A."
@@ -85,18 +86,9 @@
   (declare (type (integer 1 40) version))
   (+ 17 (* 4 version)))
 
-(defparameter +remainder-bits+
-  #(0                                       ; version 1
-    7 7 7 7 7                               ; 2-6
-    0 0 0 0 0 0 0                           ; 7-13
-    3 3 3 3 3 3 3                           ; 14-20
-    4 4 4 4 4 4 4                           ; 21-27
-    3 3 3 3 3 3 3                           ; 28-34
-    0 0 0 0 0 0)                            ; 35-40
-  "Number of remainder bits appended after the final codeword (ISO Table 1).")
-
-(defun remainder-bits (version)
-  (aref +remainder-bits+ (1- version)))
+;;; The remainder bits (ISO Table 1) that pad the symbol after the final
+;;; codeword are always zero, so DRAW-DATA simply leaves those trailing modules
+;;; light rather than tracking an explicit count.
 
 ;;; Alignment pattern centre coordinates, indexed by version (ISO Table E.1).
 ;;; Version 1 has no alignment patterns.

@@ -1,7 +1,7 @@
 # clqr
 
-A pure Common Lisp, [ISO/IEC 18004](https://www.iso.org/standard/62021.html)
-conformant **QR Code encoder**.
+A pure Common Lisp **QR Code encoder** for Model 2 symbols, following
+[ISO/IEC 18004](https://www.iso.org/standard/62021.html).
 
 `clqr` has no external dependencies for its core: it computes the entire symbol —
 Galois field arithmetic, Reed-Solomon error correction, block interleaving,
@@ -14,8 +14,18 @@ API.
 - Modes **Numeric**, **Alphanumeric**, **Byte** (ISO-8859-1 / UTF-8) and
   **Kanji** (Shift-JIS), plus **ECI**.
 - Automatic mode and minimal-version selection, or force any of them.
+- Automatic **ECI 26 (UTF-8)** header when byte content isn't Latin-1, so the
+  symbol is self-describing rather than relying on the reader to guess.
 - All eight data masks with ISO penalty scoring (or force a mask).
 - Renderers: **Unicode/ASCII** text, **SVG**, and **netpbm PBM** (P1 and P4).
+
+### Scope
+
+`clqr` targets standard (Model 2) QR symbols. It does **not** implement Micro QR,
+the FNC1 (GS1) modes, or Structured Append (multi-symbol) sequences. Automatic
+mode selection chooses a single best-fit mode for the whole input; mixed-mode
+optimisation is available by constructing segments explicitly (see
+`encode-segments` below).
 
 ```
   █▀▀▀▀▀█ ▄▄█ ▀ █▀▀▀▀▀█

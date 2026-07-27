@@ -49,3 +49,17 @@ jobs:
           ./bin/clqr -f svg -o /tmp/ci.svg "CI OK on $(uname)"
           test -s /tmp/ci.svg
           ./bin/clqr -M numeric -V 4 -e h 123456789 > /dev/null
+
+      # End-to-end conformance guard: render a symbol and decode it back with an
+      # independent reader (ZXing). Linux only, to keep the matrix fast.
+      - name: Decode round-trip (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python3 -m venv /tmp/decvenv
+          /tmp/decvenv/bin/pip install --quiet zxing-cpp pillow numpy
+          for ecl in l m q h; do
+            for content in "https://github.com/lispnik/clqr" "HELLO WORLD 123" "0123456789012345678901234567890123456789"; do
+              ./bin/clqr -e "$ecl" -f pbm -s 6 -o /tmp/rt.pbm "$content"
+              /tmp/decvenv/bin/python test/decode-check.py /tmp/rt.pbm "$content"
+            done
+          done

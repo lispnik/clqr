@@ -41,6 +41,28 @@
              (format s "Invalid version: ~S (must be an integer 1-40)."
                      (invalid-version-datum c)))))
 
+(define-condition invalid-error-correction (clqr-error)
+  ((datum :initarg :datum :reader invalid-error-correction-datum))
+  (:report (lambda (c s)
+             (format s "Invalid error correction level: ~S (must be one of :L :M :Q :H)."
+                     (invalid-error-correction-datum c)))))
+
+(define-condition invalid-mask (clqr-error)
+  ((datum :initarg :datum :reader invalid-mask-datum))
+  (:report (lambda (c s)
+             (format s "Invalid mask pattern: ~S (must be an integer 0-7, or NIL to auto-select)."
+                     (invalid-mask-datum c)))))
+
+(define-condition shift-jis-unavailable (clqr-error)
+  ()
+  (:report (lambda (c s)
+             (declare (ignore c))
+             (write-string
+              "The Shift-JIS mapping table (data/jis0208.txt) is unavailable, so \
+strings cannot be converted for Kanji mode.  Pass Shift-JIS values directly to \
+MAKE-KANJI-SEGMENT instead." s)))
+  (:documentation "Signalled when Kanji conversion is requested but the mapping table did not load."))
+
 ;;; ---------------------------------------------------------------------------
 ;;; Modes and error correction levels
 ;;; ---------------------------------------------------------------------------
@@ -70,7 +92,7 @@
 (defun ecl-index (ecl)
   "Index of ECL within the L,M,Q,H block table."
   (or (position ecl +ecl-order+)
-      (error 'clqr-error)))
+      (error 'invalid-error-correction :datum ecl)))
 
 (defparameter +ecl-format-bits+
   '((:l . #b01) (:m . #b00) (:q . #b11) (:h . #b10))

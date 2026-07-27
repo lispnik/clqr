@@ -42,6 +42,9 @@
    #:data-too-long
    #:invalid-mode
    #:invalid-version
+   #:invalid-error-correction
+   #:invalid-mask
+   #:shift-jis-unavailable
    ;; Introspection helpers
    #:error-correction-levels
    #:*modes*))

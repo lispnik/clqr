@@ -48,7 +48,7 @@ JIS X 0208 set."
 error if any character is not representable in JIS X 0208 (or if the mapping
 table is unavailable)."
   (when (zerop (hash-table-count *unicode->shift-jis*))
-    (error 'clqr-error))
+    (error 'shift-jis-unavailable))
   (map '(simple-array (unsigned-byte 16) (*))
        (lambda (ch)
          (or (shift-jis-value ch)

@@ -60,6 +60,34 @@
     (clqr:encode (make-string 100 :initial-element #\a)
                  :error-correction :h :version 1)))
 
+(test invalid-argument-conditions
+  "Bad arguments signal specific, message-carrying conditions."
+  (signals clqr:invalid-error-correction (clqr:encode "x" :error-correction :bogus))
+  (signals clqr:invalid-mask (clqr:encode "x" :mask 9))
+  (signals clqr:invalid-mask (clqr:encode "x" :mask :nope))
+  (signals clqr:invalid-version (clqr:encode "x" :version 99))
+  ;; The reports are real strings, not unbound-slot crashes.
+  (handler-case (clqr:encode "x" :error-correction :bogus)
+    (clqr:invalid-error-correction (e) (is (stringp (princ-to-string e))))))
+
+(test auto-eci-for-utf8-byte-content
+  "UTF-8 byte content gets an automatic ECI 26 header; Latin-1 and explicit
+cases behave as expected."
+  ;; Latin-1 (é = U+00E9 fits one byte): no ECI.
+  (is (notany (lambda (s) (eq (clqr::segment-mode s) :eci))
+              (clqr::content-segments "café" nil nil)))
+  ;; UTF-8 (€ = U+20AC): ECI 26 prefixed.
+  (let ((segs (clqr::content-segments "€uro" nil nil)))
+    (is (eq :eci (clqr::segment-mode (first segs))))
+    (is (= 26 (clqr::segment-data (first segs)))))
+  ;; An explicit ECI wins and is not duplicated.
+  (let ((segs (clqr::content-segments "€uro" nil 9)))
+    (is (= 9 (clqr::segment-data (first segs))))
+    (is (= 1 (count :eci segs :key #'clqr::segment-mode))))
+  ;; Forced Kanji on CJK does not add a UTF-8 ECI.
+  (is (notany (lambda (s) (eq (clqr::segment-mode s) :eci))
+              (clqr::content-segments "日本" :kanji nil))))
+
 (test data-too-long-report-is-clean
   "The DATA-TOO-LONG report never hits an unbound slot (its slots default to
 NIL), so printing the condition works."

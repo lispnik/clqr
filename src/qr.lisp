@@ -57,6 +57,29 @@ This iterates the bare symbol with no quiet zone."
     (:byte (make-byte-segment content))
     (:kanji (make-kanji-segment content))))
 
+(defun utf8-content-p (content)
+  "True when CONTENT is a string that needs UTF-8, i.e. contains a character
+outside the single-byte ISO-8859-1 range (so STRING-TO-BYTES will emit UTF-8)."
+  (and (stringp content)
+       (find-if (lambda (c) (>= (char-code c) 256)) content)
+       t))
+
+(defun content-segments (content mode eci)
+  "Build the segment list for CONTENT under the (possibly NIL) forced MODE and
+explicit ECI.  When the content is encoded as UTF-8 byte data and no ECI was
+requested, an ECI 26 (UTF-8) header is prefixed so the byte segment is
+self-describing instead of relying on the reader to guess ISO-8859-1 vs UTF-8."
+  (let* ((base (if mode
+                   (list (content-to-segment content mode))
+                   (auto-segments content)))
+         (effective-eci (or eci
+                            (when (and (utf8-content-p content)
+                                       (member mode '(nil :byte)))
+                              26))))
+    (if effective-eci
+        (cons (make-eci-segment effective-eci) base)
+        base)))
+
 (defun encode (content &key (error-correction :m) version mask mode eci)
   "Encode CONTENT into a QR-CODE (the model).
 
@@ -66,24 +89,22 @@ CONTENT           a string, or a sequence of (unsigned-byte 8) for byte mode.
 :mask             force a mask pattern 0-7, or NIL to pick the best by penalty.
 :mode             force an encoding mode (:numeric :alphanumeric :byte :kanji),
                   or NIL to select automatically.
-:eci              an ECI assignment number to prefix, or NIL for none.
+:eci              an ECI assignment number to prefix, or NIL for none.  When
+                  NIL and the content is encoded as UTF-8 byte data, ECI 26
+                  (UTF-8) is prefixed automatically.
 
-Signals CLQR:DATA-TOO-LONG if the content does not fit, CLQR:INVALID-VERSION or
+Signals CLQR:DATA-TOO-LONG if the content does not fit, and
+CLQR:INVALID-VERSION / CLQR:INVALID-ERROR-CORRECTION / CLQR:INVALID-MASK /
 CLQR:INVALID-MODE for bad arguments."
   (unless (member error-correction +ecl-order+)
-    (error 'clqr-error))
+    (error 'invalid-error-correction :datum error-correction))
   (when (and mask (not (typep mask '(integer 0 7))))
-    (error 'clqr-error))
-  (let* ((base-segments (if mode
-                            (list (content-to-segment content mode))
-                            (auto-segments content)))
-         (segments (if eci
-                       (cons (make-eci-segment eci) base-segments)
-                       base-segments)))
-    ;; The whole encoding pipeline lives in ENCODE-SEGMENTS; it already drops
-    ;; the :eci mode from the recorded mode list.
-    (encode-segments segments :error-correction error-correction
-                              :version version :mask mask)))
+    (error 'invalid-mask :datum mask))
+  ;; The whole encoding pipeline lives in ENCODE-SEGMENTS; it already drops the
+  ;; :eci mode from the recorded mode list.
+  (encode-segments (content-segments content mode eci)
+                   :error-correction error-correction
+                   :version version :mask mask))
 
 (defun encode-segments (segments &key (error-correction :m) version mask)
   "Encode an explicit list of SEGMENTS (see MAKE-*-SEGMENT) into a QR-CODE.

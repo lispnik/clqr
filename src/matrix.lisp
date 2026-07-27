@@ -262,19 +262,26 @@ margin, scanned along rows or columns."
   (draw-version-info modules func size version))
 
 (defun build-matrix (codewords version ecl forced-mask)
-  "Build the finished module matrix.  Returns (values MODULES MASK)."
+  "Build the finished module matrix.  Returns (values MODULES MASK).
+
+APPLY-MASK is its own inverse (an XOR toggle over the data region) and it never
+touches function modules, so each candidate mask is applied, scored and undone
+in place -- no per-mask matrix copies are made.  Format bits sit in reserved
+function cells and are overwritten by DRAW-FORMAT-BITS each iteration."
   (let* ((size (module-count version))
-         (base (make-bit-matrix size))
+         (modules (make-bit-matrix size))
          (func (make-bit-matrix size)))
-    (place-function-patterns base func size version)
-    (draw-data base func size codewords)
-    (let ((best nil) (best-mask nil) (best-penalty nil))
+    (place-function-patterns modules func size version)
+    (draw-data modules func size codewords)
+    (let ((best-mask nil) (best-penalty nil))
       (dolist (mask (if forced-mask (list forced-mask) '(0 1 2 3 4 5 6 7)))
-        (let ((trial (make-bit-matrix size)))
-          (dotimes (r size) (dotimes (c size) (setf (mref trial r c) (mref base r c))))
-          (apply-mask trial func size mask)
-          (draw-format-bits trial size ecl mask)
-          (let ((p (penalty-score trial size)))
-            (when (or (null best-penalty) (< p best-penalty))
-              (setf best trial best-mask mask best-penalty p)))))
-      (values best best-mask))))
+        (apply-mask modules func size mask)
+        (draw-format-bits modules size ecl mask)
+        (let ((p (penalty-score modules size)))
+          (when (or (null best-penalty) (< p best-penalty))
+            (setf best-mask mask best-penalty p)))
+        (apply-mask modules func size mask))    ; undo the mask (self-inverse)
+      ;; Re-apply the winning mask and its format bits to finish the symbol.
+      (apply-mask modules func size best-mask)
+      (draw-format-bits modules size ecl best-mask)
+      (values modules best-mask))))

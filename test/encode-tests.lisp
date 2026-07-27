@@ -79,6 +79,29 @@ Latin-1 forces UTF-8 bytes under ECI (no Kanji); Kanji + ASCII stays Kanji."
       (is (not (member :eci m)))
       (is (member :kanji m)))))
 
+(test fnc1-headers
+  "FNC1 first/second-position header sizes and integration."
+  (is (= 4 (clqr::segment-bits (clqr:make-fnc1-first-segment) 1)))
+  (is (= 12 (clqr::segment-bits (clqr:make-fnc1-second-segment 37) 1)))
+  (let ((qr (clqr:encode "0112345678901231" :fnc1 :gs1)))
+    (is (clqr:qr-code-p qr))
+    ;; The FNC1 header is not reported as a data mode.
+    (is (not (member :fnc1-first (clqr:qr-mode qr)))))
+  (is (clqr:qr-code-p (clqr:encode "AB1234" :fnc1 '(:aim 37)))))
+
+(test structured-append
+  "Structured Append splits content into a decodable multi-symbol sequence."
+  (is (= 20 (clqr::segment-bits (clqr:make-structured-append-segment 0 3 42) 1)))
+  ;; index must be within the sequence
+  (signals error (clqr:make-structured-append-segment 3 3 0))
+  ;; parity is the XOR of the content bytes, shared by every symbol
+  (is (= (clqr::structured-append-parity "hello world")
+         (reduce #'logxor (map 'list #'char-code "hello world") :initial-value 0)))
+  (let ((qrs (clqr:encode-structured-append
+              "abcdefghij klmnop 0123456789 QRSTUV" :count 3)))
+    (is (= 3 (length qrs)))
+    (is (every #'clqr:qr-code-p qrs))))
+
 (test version-grows-with-content
   (let ((small (clqr:encode "1" :error-correction :l))
         (large (clqr:encode (make-string 200 :initial-element #\A)

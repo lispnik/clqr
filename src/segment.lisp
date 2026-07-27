@@ -95,6 +95,26 @@ or a sequence of (unsigned-byte 16) Shift-JIS double-byte values."
   (check-type assignment-number (integer 0 999999))
   (%make-segment :mode :eci :data assignment-number :count 0))
 
+(defun make-fnc1-first-segment ()
+  "Create an FNC1 header in the first position (GS1 application, ISO 8.4.1)."
+  (%make-segment :mode :fnc1-first :data nil :count 0))
+
+(defun make-fnc1-second-segment (application-indicator)
+  "Create an FNC1 header in the second position with the given 8-bit
+APPLICATION-INDICATOR codeword (AIM industry applications, ISO 8.4.1)."
+  (check-type application-indicator (integer 0 255))
+  (%make-segment :mode :fnc1-second :data application-indicator :count 0))
+
+(defun make-structured-append-segment (index total parity)
+  "Create a Structured Append header (ISO 8.4): this is symbol INDEX (0-based)
+of TOTAL symbols (1-16), with the 8-bit sequence PARITY common to the set."
+  (check-type index (integer 0 15))
+  (check-type total (integer 1 16))
+  (check-type parity (integer 0 255))
+  (assert (< index total) (index total)
+          "Structured Append index ~D must be less than total ~D." index total)
+  (%make-segment :mode :structured-append :data (list index total parity) :count 0))
+
 ;;; ---------------------------------------------------------------------------
 ;;; Bit length
 ;;; ---------------------------------------------------------------------------
@@ -113,13 +133,16 @@ character count indicator)."
       (:alphanumeric (+ (* 11 (floor n 2)) (* 6 (mod n 2))))
       (:byte (* 8 n))
       (:kanji (* 13 n))
-      (:eci (eci-designator-bits (segment-data segment))))))
+      (:eci (eci-designator-bits (segment-data segment)))
+      (:fnc1-first 0)                   ; mode indicator only
+      (:fnc1-second 8)                  ; + application indicator codeword
+      (:structured-append 16))))        ; + sequence indicator + parity codewords
 
 (defun segment-bits (segment version)
   "Total number of bits SEGMENT occupies at VERSION, including the mode
-indicator and (except for ECI) the character count indicator."
+indicator and (for data modes) the character count indicator."
   (+ 4                                  ; mode indicator
-     (if (eq (segment-mode segment) :eci)
+     (if (member (segment-mode segment) +header-modes+)
          0
          (char-count-bits (segment-mode segment) version))
      (segment-data-bits segment)))
@@ -141,7 +164,7 @@ indicator and (except for ECI) the character count indicator."
   "Emit SEGMENT (mode indicator, character count and data) into STREAM."
   (let ((mode (segment-mode segment)))
     (write-bits stream (mode-indicator mode) 4)
-    (unless (eq mode :eci)
+    (unless (member mode +header-modes+)
       (write-bits stream (segment-count segment) (char-count-bits mode version)))
     (ecase mode
       (:numeric
@@ -171,7 +194,14 @@ indicator and (except for ECI) the character count indicator."
                             (+ (* (ldb (byte 8 8) adjusted) #xC0)
                                (ldb (byte 8 0) adjusted))
                             13)))
-      (:eci (write-eci-designator stream (segment-data segment))))
+      (:eci (write-eci-designator stream (segment-data segment)))
+      (:fnc1-first)                     ; mode indicator only, nothing further
+      (:fnc1-second (write-bits stream (segment-data segment) 8))
+      (:structured-append
+       (destructuring-bind (index total parity) (segment-data segment)
+         ;; Symbol sequence indicator: position (0-based) then (total - 1).
+         (write-bits stream (logior (ash index 4) (1- total)) 8)
+         (write-bits stream parity 8))))
     stream))
 
 ;;; ---------------------------------------------------------------------------

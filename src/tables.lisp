@@ -71,12 +71,20 @@ MAKE-KANJI-SEGMENT instead." s)))
   "The encoding modes supported by clqr.")
 
 (defparameter +mode-indicators+
-  '((:eci          . #b0111)
-    (:numeric      . #b0001)
-    (:alphanumeric . #b0010)
-    (:byte         . #b0100)
-    (:kanji        . #b1000))
+  '((:eci               . #b0111)
+    (:numeric           . #b0001)
+    (:alphanumeric      . #b0010)
+    (:byte              . #b0100)
+    (:kanji             . #b1000)
+    (:structured-append . #b0011)
+    (:fnc1-first        . #b0101)
+    (:fnc1-second       . #b1001))
   "4-bit mode indicators (ISO Table 2).")
+
+(defparameter +header-modes+
+  '(:eci :structured-append :fnc1-first :fnc1-second)
+  "Modes that are headers rather than data: they carry no character count and
+are excluded from the recorded mode list of a symbol.")
 
 (defun mode-indicator (mode)
   (or (cdr (assoc mode +mode-indicators+))

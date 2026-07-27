@@ -29,6 +29,8 @@
    #:qr-modules
    #:qr-module
    #:map-modules
+   ;; Structured Append (multi-symbol sequences)
+   #:encode-structured-append
    ;; Segments (advanced / explicit construction)
    #:segment
    #:make-numeric-segment
@@ -36,6 +38,9 @@
    #:make-byte-segment
    #:make-kanji-segment
    #:make-eci-segment
+   #:make-fnc1-first-segment
+   #:make-fnc1-second-segment
+   #:make-structured-append-segment
    #:encode-segments
    ;; Conditions
    #:clqr-error

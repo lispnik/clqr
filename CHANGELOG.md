@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pure Common Lisp QR code encoder for Model 2 symbols, following ISO/IEC 18004.
 - Versions 1–40, error correction levels L/M/Q/H, all eight data masks with
   penalty-based selection, and the Numeric, Alphanumeric, Byte (ISO-8859-1 /
-  UTF-8) and Kanji (Shift-JIS) modes plus ECI. Micro QR, FNC1 (GS1) and
-  Structured Append are not supported.
+  UTF-8) and Kanji (Shift-JIS) modes plus ECI. Micro QR is not supported.
+- FNC1 headers (GS1 first position and AIM second position) via `:fnc1`, and
+  Structured Append multi-symbol sequences via `encode-structured-append`.
 - Optimal mixed-mode segmentation: the input is split across Numeric,
   Alphanumeric, Byte and Kanji runs to minimise the encoded size (Japanese text
   auto-selects Kanji mode). Kanji mode and a UTF-8 byte ECI are never mixed, so

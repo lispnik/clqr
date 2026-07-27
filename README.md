@@ -20,13 +20,13 @@ API.
 - Automatic **ECI 26 (UTF-8)** header when byte content isn't Latin-1, so the
   symbol is self-describing rather than relying on the reader to guess.
 - All eight data masks with ISO penalty scoring (or force a mask).
+- **FNC1** (GS1 and AIM) headers and **Structured Append** (multi-symbol) sequences.
 - Renderers: **Unicode/ASCII** text, **SVG**, and **netpbm PBM** (P1 and P4).
 
 ### Scope
 
-`clqr` targets standard (Model 2) QR symbols. It does **not** implement Micro QR,
-the FNC1 (GS1) modes, or Structured Append (multi-symbol) sequences. You can
-also build segments by hand for full control (see `encode-segments` below).
+`clqr` targets standard (Model 2) QR symbols. It does **not** implement Micro QR.
+You can also build segments by hand for full control (see `encode-segments` below).
 
 ```
   █▀▀▀▀▀█ ▄▄█ ▀ █▀▀▀▀▀█
@@ -102,6 +102,7 @@ additionally uses [clingon](https://github.com/dnaeon/clingon); the test system
 | `:mask`             | force `0`–`7`, or `nil` to select the lowest-penalty mask          |
 | `:mode`             | force `:numeric` `:alphanumeric` `:byte` `:kanji`, or `nil` (auto) |
 | `:eci`              | an ECI assignment number to prefix, or `nil`                       |
+| `:fnc1`             | `:gs1`, `(:aim N)`, or `nil` — prefix an FNC1 header               |
 
 For mixed-mode content, build segments explicitly and use `clqr:encode-segments`:
 
@@ -110,6 +111,16 @@ For mixed-mode content, build segments explicitly and use `clqr:encode-segments`
   (list (clqr:make-alphanumeric-segment "HELLO ")
         (clqr:make-byte-segment "world!"))
   :error-correction :h)
+```
+
+### Structured Append
+
+Split a long message across several linked symbols (2–16); the result is a list
+of `qr-code` objects that a reader can reassemble:
+
+```lisp
+(clqr:encode-structured-append "…a long message…" :count 3 :error-correction :m)
+;; => (#<QR-CODE> #<QR-CODE> #<QR-CODE>)
 ```
 
 ### Renderers

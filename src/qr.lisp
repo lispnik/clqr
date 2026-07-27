@@ -67,51 +67,54 @@ outside the single-byte ISO-8859-1 range (so STRING-TO-BYTES will emit UTF-8)."
 (defun eci-prefix (eci-number)
   (when eci-number (list (make-eci-segment eci-number))))
 
-(defun plan-encoding (content mode eci error-correction forced-version)
+(defun plan-encoding (content mode eci error-correction forced-version &optional leading)
   "Choose the segments and version for CONTENT.  Returns (values SEGMENTS
-VERSION).  With no forced MODE and a string CONTENT the segmentation is optimal
-(minimal-bit mixed mode, including Kanji); otherwise a single forced-mode or
-byte segment is used.
+VERSION).  LEADING is a list of fixed header segments (e.g. Structured Append or
+FNC1) prefixed before everything and counted against capacity.  With no forced
+MODE and a string CONTENT the segmentation is optimal (minimal-bit mixed mode,
+including Kanji); otherwise a single forced-mode or byte segment is used.
 
 An ECI 26 (UTF-8) header is prefixed automatically only when the content is
 actually encoded as UTF-8 *byte* data (never for Kanji-mode runs, which are
 self-describing), unless an explicit ECI was given."
-  (cond
-    (mode
-     ;; Forced single mode: only byte mode can carry UTF-8 that needs an ECI.
-     (let* ((eci-number (or eci (when (and (eq mode :byte) (utf8-content-p content)) 26)))
-            (segments (append (eci-prefix eci-number)
-                              (list (content-to-segment content mode))))
-            (version (choose-version segments error-correction forced-version)))
-       (values segments version)))
-    ((stringp content)
-     ;; Optimal segmentation.  Two mutually exclusive regimes keep the symbol
-     ;; unambiguous for readers:
-     ;;   * If a UTF-8 byte ECI is in play (an explicit ECI, or content with a
-     ;;     non-Kanji character above Latin-1), encode all non-ASCII as UTF-8
-     ;;     bytes under that ECI and do NOT use Kanji mode -- mixing Kanji runs
-     ;;     with an ECI confuses decoders.
-     ;;   * Otherwise use Kanji mode freely (self-describing, no ECI) and keep
-     ;;     byte runs Latin-1 only, so no undeclared UTF-8 is ever emitted.
-     (let* ((utf8-required (some (lambda (c) (and (>= (char-code c) 256)
-                                                  (not (shift-jis-value c))))
-                                 content))
-            (eci-number (cond (eci eci) (utf8-required 26) (t nil)))
-            (modes (if eci-number
-                       '(:numeric :alphanumeric :byte)
-                       '(:numeric :alphanumeric :byte :kanji)))
-            (latin1-byte-only (null eci-number))
-            (prefix (eci-prefix eci-number))
-            (prefix-bits (if prefix (segment-bits (first prefix) 1) 0)))
-       (multiple-value-bind (runs version)
-           (optimal-runs-and-version content error-correction prefix-bits
-                                     forced-version modes latin1-byte-only)
-         (values (append prefix (runs-to-segments content runs)) version))))
-    (t                                  ; a raw byte sequence -> single byte segment
-     (let* ((segments (append (eci-prefix eci)
-                              (list (make-byte-segment content))))
-            (version (choose-version segments error-correction forced-version)))
-       (values segments version)))))
+  (let ((leading-bits (reduce #'+ leading :initial-value 0
+                                          :key (lambda (s) (segment-bits s 1)))))
+    (cond
+      (mode
+       ;; Forced single mode: only byte mode can carry UTF-8 that needs an ECI.
+       (let* ((eci-number (or eci (when (and (eq mode :byte) (utf8-content-p content)) 26)))
+              (segments (append leading (eci-prefix eci-number)
+                                (list (content-to-segment content mode))))
+              (version (choose-version segments error-correction forced-version)))
+         (values segments version)))
+      ((stringp content)
+       ;; Optimal segmentation.  Two mutually exclusive regimes keep the symbol
+       ;; unambiguous for readers:
+       ;;   * If a UTF-8 byte ECI is in play (an explicit ECI, or content with a
+       ;;     non-Kanji character above Latin-1), encode all non-ASCII as UTF-8
+       ;;     bytes under that ECI and do NOT use Kanji mode -- mixing Kanji runs
+       ;;     with an ECI confuses decoders.
+       ;;   * Otherwise use Kanji mode freely (self-describing, no ECI) and keep
+       ;;     byte runs Latin-1 only, so no undeclared UTF-8 is ever emitted.
+       (let* ((utf8-required (some (lambda (c) (and (>= (char-code c) 256)
+                                                    (not (shift-jis-value c))))
+                                   content))
+              (eci-number (cond (eci eci) (utf8-required 26) (t nil)))
+              (modes (if eci-number
+                         '(:numeric :alphanumeric :byte)
+                         '(:numeric :alphanumeric :byte :kanji)))
+              (latin1-byte-only (null eci-number))
+              (prefix (eci-prefix eci-number))
+              (prefix-bits (+ leading-bits (if prefix (segment-bits (first prefix) 1) 0))))
+         (multiple-value-bind (runs version)
+             (optimal-runs-and-version content error-correction prefix-bits
+                                       forced-version modes latin1-byte-only)
+           (values (append leading prefix (runs-to-segments content runs)) version))))
+      (t                                ; a raw byte sequence -> single byte segment
+       (let* ((segments (append leading (eci-prefix eci)
+                                (list (make-byte-segment content))))
+              (version (choose-version segments error-correction forced-version)))
+         (values segments version))))))
 
 (defun %build-symbol (segments version error-correction mask)
   "Encode SEGMENTS at VERSION into a finished QR-CODE."
@@ -121,10 +124,22 @@ self-describing), unless an explicit ECI was given."
         (build-matrix final version error-correction mask)
       (%make-qr-code
        :version version :error-correction error-correction :mask chosen-mask
-       :mode (remove-duplicates (remove :eci (mapcar #'segment-mode segments)))
+       :mode (remove-duplicates
+              (set-difference (mapcar #'segment-mode segments) +header-modes+))
        :size (module-count version) :modules modules))))
 
-(defun encode (content &key (error-correction :m) version mask mode eci)
+(defun fnc1-leading (fnc1)
+  "Translate the :FNC1 argument into a list of leading header segments.
+NIL          -> none
+:GS1         -> FNC1 in the first position (GS1)
+(:aim N)     -> FNC1 in the second position with application indicator N (0-255)"
+  (cond ((null fnc1) nil)
+        ((eq fnc1 :gs1) (list (make-fnc1-first-segment)))
+        ((and (consp fnc1) (eq (first fnc1) :aim))
+         (list (make-fnc1-second-segment (second fnc1))))
+        (t (error 'invalid-mode :datum (list :fnc1 fnc1)))))
+
+(defun encode (content &key (error-correction :m) version mask mode eci fnc1)
   "Encode CONTENT into a QR-CODE (the model).
 
 CONTENT           a string, or a sequence of (unsigned-byte 8) for byte mode.
@@ -136,6 +151,9 @@ CONTENT           a string, or a sequence of (unsigned-byte 8) for byte mode.
 :eci              an ECI assignment number to prefix, or NIL for none.  When
                   NIL and the content is encoded as UTF-8 byte data, ECI 26
                   (UTF-8) is prefixed automatically.
+:fnc1             :GS1 for an FNC1 first-position (GS1) header, (:aim N) for an
+                  FNC1 second-position header with application indicator N, or
+                  NIL for none.
 
 With automatic mode selection the content is segmented to minimise the encoded
 size, mixing Numeric, Alphanumeric, Byte and Kanji runs as beneficial.
@@ -148,7 +166,7 @@ CLQR:INVALID-MODE for bad arguments."
   (when (and mask (not (typep mask '(integer 0 7))))
     (error 'invalid-mask :datum mask))
   (multiple-value-bind (segments version)
-      (plan-encoding content mode eci error-correction version)
+      (plan-encoding content mode eci error-correction version (fnc1-leading fnc1))
     (%build-symbol segments version error-correction mask)))
 
 (defun encode-segments (segments &key (error-correction :m) version mask)
@@ -156,3 +174,42 @@ CLQR:INVALID-MODE for bad arguments."
 This is the low-level entry point for hand-built mixed-mode content."
   (%build-symbol segments (choose-version segments error-correction version)
                  error-correction mask))
+
+;;; ---------------------------------------------------------------------------
+;;; Structured Append (multi-symbol sequences)
+;;; ---------------------------------------------------------------------------
+
+(defun structured-append-parity (content)
+  "The 8-bit parity of CONTENT: the XOR of its byte values (ISO 8.4).  A string
+is taken in its byte representation (ISO-8859-1 or UTF-8)."
+  (let ((bytes (if (stringp content) (string-to-bytes content) content)))
+    (reduce #'logxor bytes :initial-value 0)))
+
+(defun split-string-evenly (content parts)
+  "Split the string CONTENT into PARTS roughly-equal contiguous substrings."
+  (let ((n (length content)))
+    (loop with start = 0
+          for i below parts
+          for len = (+ (floor n parts) (if (< i (mod n parts)) 1 0))
+          collect (subseq content start (+ start len))
+          do (incf start len))))
+
+(defun encode-structured-append (content &key (error-correction :m) (count 2)
+                                            version mask mode fnc1)
+  "Encode CONTENT as a Structured Append sequence of COUNT symbols (2-16),
+returning a list of COUNT QR-CODE objects.  All symbols carry the same sequence
+parity so a reader can reassemble them.  CONTENT must be a string; it is split
+into COUNT roughly-equal pieces, each segmented independently.  The other
+keywords behave as in ENCODE and apply to every symbol."
+  (check-type count (integer 2 16))
+  (unless (stringp content)
+    (error 'invalid-mode :datum "structured append requires string content"))
+  (let ((parity (structured-append-parity content))
+        (pieces (split-string-evenly content count)))
+    (loop for piece in pieces
+          for index from 0
+          collect (let ((leading (cons (make-structured-append-segment index count parity)
+                                       (fnc1-leading fnc1))))
+                    (multiple-value-bind (segments symbol-version)
+                        (plan-encoding piece mode nil error-correction version leading)
+                      (%build-symbol segments symbol-version error-correction mask))))))

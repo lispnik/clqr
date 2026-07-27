@@ -59,6 +59,12 @@
     :integer :description "prefix an ECI assignment number"
     :long-name "eci" :key :eci)
    (clingon:make-option
+    :string :description "FNC1 header: \"gs1\" or \"aim:N\""
+    :long-name "fnc1" :key :fnc1)
+   (clingon:make-option
+    :integer :description "emit a Structured Append sequence of N symbols (2-16)"
+    :long-name "structured-append" :key :structured-append)
+   (clingon:make-option
     :enum :description "output format"
     :short-name #\f :long-name "format" :initial-value "text"
     :items '(("text" . :text) ("svg" . :svg) ("pbm" . :pbm))
@@ -124,6 +130,47 @@ character or binary per BINARY."
 ;;; Handler
 ;;; ---------------------------------------------------------------------------
 
+(defun parse-fnc1 (value)
+  "Parse the --fnc1 option: \"gs1\" or \"aim:N\" (or NIL)."
+  (cond ((or (null value) (string= value "")) nil)
+        ((string-equal value "gs1") :gs1)
+        ((and (>= (length value) 4) (string-equal (subseq value 0 4) "aim:"))
+         (list :aim (parse-integer value :start 4)))
+        (t (error "Invalid --fnc1: ~S (expected \"gs1\" or \"aim:N\")." value))))
+
+(defun indexed-path (path index)
+  "Insert -INDEX before PATH's extension (foo.svg -> foo-3.svg)."
+  (let ((dot (position #\. path :from-end t)))
+    (if dot
+        (format nil "~A-~D~A" (subseq path 0 dot) index (subseq path dot))
+        (format nil "~A-~D" path index))))
+
+(defun render-symbol (cmd qr stream)
+  "Render QR to STREAM in the requested format using CMD's options."
+  (let ((quiet-zone (clingon:getopt cmd :quiet-zone))
+        (module-size (clingon:getopt cmd :module-size))
+        (bg (clingon:getopt cmd :bg)))
+    (ecase (clingon:getopt cmd :format)
+      (:text (clqr.render:render-text
+              qr :stream stream :quiet-zone quiet-zone
+              :style (if (clingon:getopt cmd :ascii) :ascii :unicode)
+              :invert (clingon:getopt cmd :invert)))
+      (:svg (clqr.render:render-svg
+             qr :stream stream :quiet-zone quiet-zone
+             :module-size (or module-size 8)
+             :foreground (clingon:getopt cmd :fg)
+             :background (if (string-equal bg "none") nil bg)))
+      (:pbm (clqr.render:render-pbm
+             qr :stream stream :quiet-zone quiet-zone
+             :module-size (or module-size 8)
+             :format (clingon:getopt cmd :pbm-format))))))
+
+(defun summarise (qr &optional index count)
+  (format *error-output* "clqr: ~Aversion ~D, EC ~A, mask ~D, ~D modules~%"
+          (if index (format nil "[~D/~D] " index count) "")
+          (clqr:qr-version qr) (clqr:qr-error-correction qr)
+          (clqr:qr-mask qr) (clqr:qr-size qr)))
+
 (defun run-encode (cmd)
   (let* ((args (clingon:command-arguments cmd))
          (content-arg (first args))
@@ -136,32 +183,33 @@ character or binary per BINARY."
          (mode-opt (clingon:getopt cmd :mode))
          (mode (unless (eq mode-opt :auto) mode-opt))
          (eci (clingon:getopt cmd :eci))
+         (fnc1 (parse-fnc1 (clingon:getopt cmd :fnc1)))
          (format (clingon:getopt cmd :format))
          (output (clingon:getopt cmd :output))
-         (quiet-zone (clingon:getopt cmd :quiet-zone))
-         (module-size (clingon:getopt cmd :module-size))
-         (pbm-format (clingon:getopt cmd :pbm-format))
-         (bg (clingon:getopt cmd :bg)))
-    (let ((qr (clqr:encode content :error-correction ecl :version version
-                                   :mask mask :mode mode :eci eci)))
-      (with-output-stream (stream output (binary-output-p format pbm-format))
-        (ecase format
-          (:text (clqr.render:render-text
-                  qr :stream stream :quiet-zone quiet-zone
-                  :style (if (clingon:getopt cmd :ascii) :ascii :unicode)
-                  :invert (clingon:getopt cmd :invert)))
-          (:svg (clqr.render:render-svg
-                 qr :stream stream :quiet-zone quiet-zone
-                 :module-size (or module-size 8)
-                 :foreground (clingon:getopt cmd :fg)
-                 :background (if (string-equal bg "none") nil bg)))
-          (:pbm (clqr.render:render-pbm
-                 qr :stream stream :quiet-zone quiet-zone
-                 :module-size (or module-size 8) :format pbm-format))))
-      ;; A short summary to stderr keeps stdout clean for piping.
-      (format *error-output* "clqr: version ~D, EC ~A, mask ~D, ~D modules~%"
-              (clqr:qr-version qr) (clqr:qr-error-correction qr)
-              (clqr:qr-mask qr) (clqr:qr-size qr)))))
+         (binary (binary-output-p format (clingon:getopt cmd :pbm-format)))
+         (sa (clingon:getopt cmd :structured-append)))
+    (cond
+      ((and sa (>= sa 2))
+       ;; Structured Append: one symbol per piece.
+       (when (and (null output) binary)
+         (error "Structured Append with a binary PBM needs --output."))
+       (let ((qrs (clqr:encode-structured-append
+                   content :error-correction ecl :count sa :version version
+                           :mask mask :mode mode :fnc1 fnc1)))
+         (loop for qr in qrs
+               for i from 1
+               do (let ((path (and output (indexed-path output i))))
+                    (with-output-stream (stream path binary)
+                      (when (and (null output) (not binary) (> i 1))
+                        (terpri stream))
+                      (render-symbol cmd qr stream))
+                    (summarise qr i sa)))))
+      (t
+       (let ((qr (clqr:encode content :error-correction ecl :version version
+                                      :mask mask :mode mode :eci eci :fnc1 fnc1)))
+         (with-output-stream (stream output binary)
+           (render-symbol cmd qr stream))
+         (summarise qr))))))
 
 (defun handler (cmd)
   "Top-level command handler with friendly error reporting."
@@ -193,7 +241,11 @@ character or binary per BINARY."
                ("Encode numbers, forcing numeric mode and version 4:"
                 . "clqr -M numeric -V 4 123456789")
                ("Read content from standard input as a PBM image:"
-                . "echo -n hi | clqr -f pbm -o hi.pbm -"))))
+                . "echo -n hi | clqr -f pbm -o hi.pbm -")
+               ("Encode a GS1 code with an FNC1 header:"
+                . "clqr --fnc1 gs1 0112345678901231")
+               ("Split a long message into 3 Structured Append SVGs:"
+                . "clqr --structured-append 3 -f svg -o msg.svg \"…long text…\""))))
 
 (defun main ()
   (clingon:run (command)))

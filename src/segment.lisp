@@ -175,22 +175,114 @@ indicator and (except for ECI) the character count indicator."
     stream))
 
 ;;; ---------------------------------------------------------------------------
-;;; Automatic segmentation and version selection
+;;; Optimal mixed-mode segmentation and version selection
 ;;; ---------------------------------------------------------------------------
+;;;
+;;; The optimal segmentation of a string is the partition into runs (each in one
+;;; mode) that minimises the total encoded bit count.  Since the character-count
+;;; indicator width depends only on the version group (1-9, 10-26, 27-40), the
+;;; dynamic program below is run once per group; version selection then picks the
+;;; smallest version whose capacity holds the group's optimal bit count.
 
-(defun auto-segments (content)
-  "Build a list of segments for CONTENT (a string or a byte sequence) by
-choosing the most compact single mode that can represent all of it."
-  (if (stringp content)
-      (list (cond
-              ((and (plusp (length content))
-                    (every (lambda (c) (char<= #\0 c #\9)) content))
-               (make-numeric-segment content))
-              ((and (plusp (length content))
-                    (every #'alphanumeric-value content))
-               (make-alphanumeric-segment content))
-              (t (make-byte-segment content))))
-      (list (make-byte-segment content))))
+(defun utf8-char-length (char)
+  "Number of UTF-8 bytes needed to encode CHAR."
+  (let ((cp (char-code char)))
+    (cond ((< cp #x80) 1) ((< cp #x800) 2) ((< cp #x10000) 3) (t 4))))
+
+(defun char-supports-mode-p (char mode &optional latin1-byte-only)
+  "True if CHAR can be encoded in MODE.  When LATIN1-BYTE-ONLY is true, byte mode
+only accepts single-byte (ISO-8859-1) characters, so that multi-byte UTF-8 is
+never emitted in a byte run without an accompanying ECI."
+  (ecase mode
+    (:numeric (char<= #\0 char #\9))
+    (:alphanumeric (and (alphanumeric-value char) t))
+    (:byte (or (not latin1-byte-only) (< (char-code char) 256)))
+    (:kanji (and (shift-jis-value char) t))))
+
+(defun mode-data-bits (mode length)
+  "Data bits for a run of LENGTH characters in MODE (byte mode is handled with
+UTF-8 byte counts elsewhere, so it is not accepted here)."
+  (ecase mode
+    (:numeric (+ (* 10 (floor length 3)) (case (mod length 3) (0 0) (1 4) (2 7))))
+    (:alphanumeric (+ (* 11 (floor length 2)) (* 6 (mod length 2))))
+    (:kanji (* 13 length))))
+
+(defun optimal-runs (content version modes latin1-byte-only)
+  "Return (values TOTAL-BITS RUNS) for the minimal-bit segmentation of the
+string CONTENT at VERSION, choosing among MODES (byte mode restricted to
+Latin-1 when LATIN1-BYTE-ONLY).  RUNS is a list of (MODE START END)."
+  (let* ((n (length content))
+         (dp (make-array (1+ n) :initial-element nil))    ; dp[i] = min bits or NIL
+         (back (make-array (1+ n) :initial-element nil))  ; back[i] = (start . mode)
+         (byte-prefix (make-array (1+ n) :initial-element 0)))
+    (when (zerop n)
+      (return-from optimal-runs
+        (values (+ 4 (char-count-bits :byte version)) (list (list :byte 0 0)))))
+    (setf (aref dp 0) 0)
+    (dotimes (k n)
+      (setf (aref byte-prefix (1+ k))
+            (+ (aref byte-prefix k) (utf8-char-length (char content k)))))
+    (dotimes (j n)
+      (when (aref dp j)
+        (dolist (mode modes)
+          (loop for i from (1+ j) to n
+                while (char-supports-mode-p (char content (1- i)) mode latin1-byte-only)
+                do (let* ((data-bits (if (eq mode :byte)
+                                         (* 8 (- (aref byte-prefix i) (aref byte-prefix j)))
+                                         (mode-data-bits mode (- i j))))
+                          (cost (+ (aref dp j) 4 (char-count-bits mode version) data-bits)))
+                     (when (or (null (aref dp i)) (< cost (aref dp i)))
+                       (setf (aref dp i) cost
+                             (aref back i) (cons j mode))))))))
+    (let ((runs '()) (i n))
+      (loop while (> i 0)
+            for entry = (aref back i)
+            do (push (list (cdr entry) (car entry) i) runs)
+               (setf i (car entry)))
+      (values (aref dp n) runs))))
+
+(defun run-to-segment (content mode start end)
+  "Build the segment for the run CONTENT[START:END] in MODE."
+  (let ((s (subseq content start end)))
+    (ecase mode
+      (:numeric (make-numeric-segment s))
+      (:alphanumeric (make-alphanumeric-segment s))
+      (:byte (make-byte-segment s))
+      (:kanji (make-kanji-segment s)))))
+
+(defun runs-to-segments (content runs)
+  (mapcar (lambda (run) (apply #'run-to-segment content run)) runs))
+
+(defun version-group (version)
+  (cond ((<= version 9) 0) ((<= version 26) 1) (t 2)))
+
+(defun optimal-runs-and-version (content ecl prefix-bits forced-version modes latin1-byte-only)
+  "Choose the optimal segmentation of the string CONTENT (over MODES, byte mode
+Latin-1-only when LATIN1-BYTE-ONLY) and the version that holds it, allowing
+PREFIX-BITS for any fixed prefix segment.  Returns (values RUNS VERSION)."
+  (labels ((fits (bits version) (<= (+ bits prefix-bits) (data-capacity-bits version ecl)))
+           (runs-for (v) (multiple-value-list
+                          (optimal-runs content v modes latin1-byte-only))))
+    (if forced-version
+        (multiple-value-bind (bits runs) (optimal-runs content forced-version modes latin1-byte-only)
+          (unless (and (integerp forced-version) (<= 1 forced-version 40))
+            (error 'invalid-version :datum forced-version))
+          (unless (fits bits forced-version)
+            (error 'data-too-long :content-bits (+ bits prefix-bits)
+                                  :version forced-version :error-correction ecl))
+          (values runs forced-version))
+        (let ((cache (make-array 3 :initial-element nil)))
+          (flet ((group (g)
+                   (or (aref cache g)
+                       (setf (aref cache g) (runs-for (svref #(1 10 27) g))))))
+            (loop for v from 1 to 40
+                  for (bits runs) = (group (version-group v))
+                  when (fits bits v)
+                    do (return (values runs v))
+                  finally (destructuring-bind (bits runs) (group 2)
+                            (declare (ignore runs))
+                            (error 'data-too-long :content-bits (+ bits prefix-bits)
+                                                  :version nil :error-correction ecl))))))))
 
 (defun choose-version (segments ecl &optional forced-version)
   "Return the version to use for SEGMENTS at error correction level ECL.  If

@@ -13,7 +13,10 @@ API.
 - Versions **1–40**, error correction levels **L / M / Q / H**.
 - Modes **Numeric**, **Alphanumeric**, **Byte** (ISO-8859-1 / UTF-8) and
   **Kanji** (Shift-JIS), plus **ECI**.
-- Automatic mode and minimal-version selection, or force any of them.
+- **Optimal mixed-mode segmentation** — the input is split into Numeric,
+  Alphanumeric, Byte and Kanji runs to minimise the encoded size (so Japanese
+  text auto-selects the compact Kanji mode), or force a single mode.
+- Minimal-version selection, or force a version.
 - Automatic **ECI 26 (UTF-8)** header when byte content isn't Latin-1, so the
   symbol is self-describing rather than relying on the reader to guess.
 - All eight data masks with ISO penalty scoring (or force a mask).
@@ -22,10 +25,8 @@ API.
 ### Scope
 
 `clqr` targets standard (Model 2) QR symbols. It does **not** implement Micro QR,
-the FNC1 (GS1) modes, or Structured Append (multi-symbol) sequences. Automatic
-mode selection chooses a single best-fit mode for the whole input; mixed-mode
-optimisation is available by constructing segments explicitly (see
-`encode-segments` below).
+the FNC1 (GS1) modes, or Structured Append (multi-symbol) sequences. You can
+also build segments by hand for full control (see `encode-segments` below).
 
 ```
   █▀▀▀▀▀█ ▄▄█ ▀ █▀▀▀▀▀█

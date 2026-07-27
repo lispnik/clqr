@@ -49,6 +49,36 @@
   (is (equal '(:alphanumeric) (clqr:qr-mode (clqr:encode "HELLO WORLD"))))
   (is (equal '(:byte) (clqr:qr-mode (clqr:encode "Hello, world!")))))
 
+(test kanji-auto-detected
+  "All-Kanji content auto-selects the compact Kanji mode instead of byte."
+  (is (equal '(:kanji) (clqr:qr-mode (clqr:encode "日本語")))))
+
+(test optimal-mixed-mode-segmentation
+  "A digit run inside otherwise-byte content becomes its own numeric segment."
+  (let ((modes (clqr:qr-mode (clqr:encode "Contact: 0123456789012345"))))
+    (is (member :numeric modes))
+    (is (member :byte modes))))
+
+(test optimal-never-worse-than-single-mode
+  "Optimal segmentation never needs a larger version than forcing byte mode."
+  (dolist (s '("ABC123" "HELLO 12345 WORLD" "mixed Text 999 and MORE" "日本語ABC123"))
+    (is (<= (clqr:qr-version (clqr:encode s))
+            (clqr:qr-version (clqr:encode s :mode :byte))))))
+
+(test kanji-eci-regime
+  "Kanji mode and a UTF-8 byte ECI are never mixed: a non-Kanji character above
+Latin-1 forces UTF-8 bytes under ECI (no Kanji); Kanji + ASCII stays Kanji."
+  (flet ((modes-of (content)
+           (mapcar #'clqr::segment-mode
+                   (values (clqr::plan-encoding content nil nil :m nil)))))
+    (let ((m (modes-of "本€")))          ; € is not JIS X 0208
+      (is (eq :eci (first m)))
+      (is (member :byte m))
+      (is (not (member :kanji m))))
+    (let ((m (modes-of "本A")))
+      (is (not (member :eci m)))
+      (is (member :kanji m)))))
+
 (test version-grows-with-content
   (let ((small (clqr:encode "1" :error-correction :l))
         (large (clqr:encode (make-string 200 :initial-element #\A)
@@ -73,20 +103,21 @@
 (test auto-eci-for-utf8-byte-content
   "UTF-8 byte content gets an automatic ECI 26 header; Latin-1 and explicit
 cases behave as expected."
-  ;; Latin-1 (é = U+00E9 fits one byte): no ECI.
-  (is (notany (lambda (s) (eq (clqr::segment-mode s) :eci))
-              (clqr::content-segments "café" nil nil)))
-  ;; UTF-8 (€ = U+20AC): ECI 26 prefixed.
-  (let ((segs (clqr::content-segments "€uro" nil nil)))
-    (is (eq :eci (clqr::segment-mode (first segs))))
-    (is (= 26 (clqr::segment-data (first segs)))))
-  ;; An explicit ECI wins and is not duplicated.
-  (let ((segs (clqr::content-segments "€uro" nil 9)))
-    (is (= 9 (clqr::segment-data (first segs))))
-    (is (= 1 (count :eci segs :key #'clqr::segment-mode))))
-  ;; Forced Kanji on CJK does not add a UTF-8 ECI.
-  (is (notany (lambda (s) (eq (clqr::segment-mode s) :eci))
-              (clqr::content-segments "日本" :kanji nil))))
+  (flet ((segs (content &key mode eci)
+           (values (clqr::plan-encoding content mode eci :m nil))))
+    ;; Latin-1 (é = U+00E9 fits one byte): no ECI.
+    (is (notany (lambda (s) (eq (clqr::segment-mode s) :eci)) (segs "café")))
+    ;; UTF-8 (€ = U+20AC): ECI 26 prefixed.
+    (let ((s (segs "€uro")))
+      (is (eq :eci (clqr::segment-mode (first s))))
+      (is (= 26 (clqr::segment-data (first s)))))
+    ;; An explicit ECI wins and is not duplicated.
+    (let ((s (segs "€uro" :eci 9)))
+      (is (= 9 (clqr::segment-data (first s))))
+      (is (= 1 (count :eci s :key #'clqr::segment-mode))))
+    ;; Forced Kanji on CJK does not add a UTF-8 ECI.
+    (is (notany (lambda (s) (eq (clqr::segment-mode s) :eci))
+                (segs "日本" :mode :kanji)))))
 
 (test data-too-long-report-is-clean
   "The DATA-TOO-LONG report never hits an unbound slot (its slots default to

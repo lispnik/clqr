@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, sbcl)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SBCL (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y sbcl
+
+      - name: Install SBCL (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sbcl
+
+      - name: Show SBCL version
+        run: sbcl --version
+
+      - name: Bootstrap ocicl
+        run: |
+          git clone --depth 1 https://github.com/ocicl/ocicl "$RUNNER_TEMP/ocicl"
+          cd "$RUNNER_TEMP/ocicl"
+          sbcl --non-interactive --load setup.lisp
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Restore dependencies
+        run: ocicl install
+
+      - name: Run tests
+        run: make test
+
+      - name: Build binary
+        run: make
+
+      - name: Smoke-test binary
+        run: |
+          ./bin/clqr -f svg -o /tmp/ci.svg "CI OK on $(uname)"
+          test -s /tmp/ci.svg
+          ./bin/clqr -M numeric -V 4 -e h 123456789 > /dev/null

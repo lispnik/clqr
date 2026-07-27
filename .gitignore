@@ -1,0 +1,13 @@
+# Compiled Lisp
+*.fasl
+*.fas
+*.lx64fsl
+*.o
+*.a
+
+# Build output
+/bin/
+
+# ocicl dependency cache and systems
+/ocicl/
+/systems/

@@ -14,7 +14,7 @@ REQUIRE    := --eval '(require :asdf)'
 REGISTRY   := --eval '(asdf:initialize-source-registry (list :source-registry (list :tree (uiop:getcwd)) :inherit-configuration))'
 BIN        := bin/clqr
 
-.PHONY: all build test deps clean help
+.PHONY: all build test coverage deps clean help
 
 all: build
 
@@ -35,6 +35,10 @@ test:
 	$(LISP) $(SBCL_FLAGS) $(REQUIRE) $(REGISTRY) \
 		--eval '(asdf:test-system :clqr)' \
 		--eval '(uiop:quit 0)'
+
+## coverage: run the suite under sb-cover and write coverage/ HTML report
+coverage:
+	$(LISP) $(SBCL_FLAGS) $(REQUIRE) $(REGISTRY) --load test/coverage.lisp
 
 ## clean: remove the binary and this project tree's fasl cache
 clean:

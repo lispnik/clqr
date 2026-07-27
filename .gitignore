@@ -8,6 +8,9 @@
 # Build output
 /bin/
 
+# Coverage report
+/coverage/
+
 # ocicl dependency cache and systems
 /ocicl/
 /systems/

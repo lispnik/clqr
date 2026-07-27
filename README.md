@@ -174,6 +174,7 @@ output stays clean for piping.
 ```sh
 make deps     # ocicl install (restore clingon + fiveam)
 make test     # run the FiveAM suite
+make coverage # run the suite under sb-cover -> coverage/cover-index.html
 make          # build bin/clqr
 make clean    # remove bin/ and this tree's fasl cache
 ```

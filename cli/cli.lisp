@@ -7,7 +7,7 @@
 
 (in-package #:clqr.cli)
 
-(defparameter +version+ "0.1.0")
+(defparameter +version+ "0.2.0")
 
 ;;; ---------------------------------------------------------------------------
 ;;; Option parsing helpers
@@ -22,13 +22,14 @@
              n))))
 
 (defun read-stream-content (stream)
-  "Read all remaining characters of STREAM into a string."
-  (with-output-to-string (out)
-    (loop for line = (read-line stream nil :eof)
-          for first = t then nil
-          until (eq line :eof)
-          do (unless first (terpri out))
-             (write-string line out))))
+  "Read all remaining characters of STREAM into a string, verbatim -- newlines
+(including a trailing one) are preserved exactly, so piped content is encoded
+byte-for-byte."
+  (let ((out (make-string-output-stream)))
+    (loop for ch = (read-char stream nil :eof)
+          until (eq ch :eof)
+          do (write-char ch out))
+    (get-output-stream-string out)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Options
@@ -87,6 +88,9 @@
    (clingon:make-option
     :string :description "svg background colour (or \"none\")"
     :long-name "bg" :initial-value "#ffffff" :key :bg)
+   (clingon:make-option
+    :string :description "svg accessible title (<title> element)"
+    :long-name "title" :key :title)
    (clingon:make-option
     :flag :description "text: use ASCII instead of Unicode blocks"
     :long-name "ascii" :key :ascii)
@@ -162,7 +166,8 @@ character or binary per BINARY."
              qr :stream stream :quiet-zone quiet-zone
              :module-size (or module-size 8)
              :foreground (clingon:getopt cmd :fg)
-             :background (if (string-equal bg "none") nil bg)))
+             :background (if (string-equal bg "none") nil bg)
+             :title (clingon:getopt cmd :title)))
       (:pbm (clqr.render:render-pbm
              qr :stream stream :quiet-zone quiet-zone
              :module-size (or module-size 8)

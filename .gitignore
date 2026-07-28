@@ -11,6 +11,10 @@
 # Coverage report
 /coverage/
 
+# Generated documentation
+/clqr.1
+/completions/
+
 # ocicl dependency cache and systems
 /ocicl/
 /systems/

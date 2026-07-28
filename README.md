@@ -45,22 +45,6 @@ unchanged. Micro QR has error levels `:l :m :q` (no `:h`; M1 is error-detection
 only, `:l`), versions 1–4 (M1–M4), and does not support ECI, FNC1 or Structured
 Append. On the CLI, add `--micro`.
 
-You can also build segments by hand for full control (see `encode-segments` below).
-
-```
-  █▀▀▀▀▀█ ▄▄█ ▀ █▀▀▀▀▀█
-  █ ███ █   █ █ █ ███ █
-  █ ▀▀▀ █ ▀▄██▀ █ ▀▀▀ █
-  ▀▀▀▀▀▀▀ ▀ ▀ ▀ ▀▀▀▀▀▀▀
-  ▀▄█▄█ ▀ ▄▀ ▄▀   █  ▀▄
-  ▄▄▄█▀█▀██▀ █▄▄▀▄▀█▄▄
-   ▀  ▀▀▀▀▄▀▄▀  █▀▀ █ █
-  █▀▀▀▀▀█  ▄▄ ▀ ▄█ █▀
-  █ ███ █ ▀▀▄▄▀▄▀█▀▀▀█▀
-  █ ▀▀▀ █ ▀▀▀█▄█▀▀ █ ▄█
-  ▀▀▀▀▀▀▀ ▀▀ ▀ ▀▀▀    ▀
-```
-
 ## Model and display
 
 The two halves are deliberately independent:
@@ -179,6 +163,22 @@ clqr -M numeric -V 4 123456789
 printf 'hi' | clqr -f pbm -o hi.pbm -
 ```
 
+`clqr "HELLO WORLD"` prints a scannable code to the terminal:
+
+```
+  █▀▀▀▀▀█ ▄▄█ ▀ █▀▀▀▀▀█
+  █ ███ █   █ █ █ ███ █
+  █ ▀▀▀ █ ▀▄██▀ █ ▀▀▀ █
+  ▀▀▀▀▀▀▀ ▀ ▀ ▀ ▀▀▀▀▀▀▀
+  ▀▄█▄█ ▀ ▄▀ ▄▀   █  ▀▄
+  ▄▄▄█▀█▀██▀ █▄▄▀▄▀█▄▄
+   ▀  ▀▀▀▀▄▀▄▀  █▀▀ █ █
+  █▀▀▀▀▀█  ▄▄ ▀ ▄█ █▀
+  █ ███ █ ▀▀▄▄▀▄▀█▀▀▀█▀
+  █ ▀▀▀ █ ▀▀▀█▄█▀▀ █ ▄█
+  ▀▀▀▀▀▀▀ ▀▀ ▀ ▀▀▀    ▀
+```
+
 Run `clqr --help` for the full option list. Every option maps onto an `encode`
 or renderer argument, so the CLI covers the complete API surface. A one-line
 summary (version, EC level, mask, size) is written to standard error so standard
@@ -191,11 +191,13 @@ output stays clean for piping.
 ## Development
 
 ```sh
-make deps     # ocicl install (restore clingon + fiveam)
-make test     # run the FiveAM suite
-make coverage # run the suite under sb-cover -> coverage/cover-index.html
-make          # build bin/clqr
-make clean    # remove bin/ and this tree's fasl cache
+make deps        # ocicl install (restore clingon + fiveam)
+make test        # run the FiveAM suite
+make coverage    # run the suite under sb-cover -> coverage/cover-index.html
+make             # build bin/clqr
+make man         # generate the clqr.1 man page
+make completions # generate bash + zsh completions into completions/
+make clean       # remove build artifacts and this tree's fasl cache
 ```
 
 The test suite checks against the ISO/IEC 18004 Annex worked example (numeric

@@ -2,9 +2,19 @@
 
 (in-package #:clqr.render)
 
+(defun xml-escape (string)
+  "Escape &, < and > for inclusion in XML text."
+  (with-output-to-string (out)
+    (loop for ch across string
+          do (case ch
+               (#\& (write-string "&amp;" out))
+               (#\< (write-string "&lt;" out))
+               (#\> (write-string "&gt;" out))
+               (t (write-char ch out))))))
+
 (defun render-svg (qr &key (stream *standard-output*) (quiet-zone 4)
                         (module-size 8) (foreground "#000000")
-                        (background "#ffffff"))
+                        (background "#ffffff") title description)
   "Render QR as a self-contained SVG document to STREAM.
 
 :quiet-zone   width of the light border in modules (default 4).
@@ -12,14 +22,20 @@
 :foreground   dark module colour (default black).
 :background   background colour (default white); NIL for a transparent
               background (no background rectangle).
+:title        an accessible name embedded as <title> (screen-reader label).
+:description  a longer accessible description embedded as <desc>.
 
 Returns QR."
   (let* ((dim (+ (qr-size qr) (* 2 quiet-zone)))
          (px (* dim module-size)))
     (format stream "<?xml version=\"1.0\" encoding=\"UTF-8\"?>~%")
-    (format stream "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"~D\" height=\"~D\" ~
-viewBox=\"0 0 ~D ~D\" shape-rendering=\"crispEdges\">~%"
+    (format stream "<svg xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" ~
+width=\"~D\" height=\"~D\" viewBox=\"0 0 ~D ~D\" shape-rendering=\"crispEdges\">~%"
             px px dim dim)
+    (when title
+      (format stream "<title>~A</title>~%" (xml-escape title)))
+    (when description
+      (format stream "<desc>~A</desc>~%" (xml-escape description)))
     (when background
       (format stream "<rect width=\"~D\" height=\"~D\" fill=\"~A\"/>~%"
               dim dim background))

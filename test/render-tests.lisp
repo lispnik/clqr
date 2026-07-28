@@ -53,8 +53,15 @@ row (no half-block packing)."
 (test render-svg-structure
   (let ((out (render-to-string #'clqr.render:render-svg (clqr:encode "svg test"))))
     (is (search "<svg" out))
+    (is (search "role=\"img\"" out))
     (is (search "<path" out))
     (is (search "</svg>" out))))
+
+(test render-svg-title-and-escaping
+  "An accessible :title is embedded as <title> with XML escaping."
+  (let ((out (render-to-string #'clqr.render:render-svg (clqr:encode "x")
+                               :title "A & B <menu>")))
+    (is (search "<title>A &amp; B &lt;menu&gt;</title>" out))))
 
 (test render-pbm-p1-header-and-size
   (let* ((qr (clqr:encode "01234567"))

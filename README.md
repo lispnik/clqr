@@ -1,5 +1,8 @@
 # clqr
 
+[![CI](https://github.com/lispnik/clqr/actions/workflows/ci.yml/badge.svg)](https://github.com/lispnik/clqr/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/badge/coverage-88%25-brightgreen)](#development)
+
 A pure Common Lisp **QR Code encoder** for Model 2 and Micro QR symbols,
 following [ISO/IEC 18004](https://www.iso.org/standard/62021.html).
 
@@ -190,8 +193,10 @@ make clean    # remove bin/ and this tree's fasl cache
 ```
 
 The test suite checks against the ISO/IEC 18004 Annex worked example (numeric
-`01234567`, version 1-M), the format and version information tables, and a golden
-full-symbol matrix cross-checked with an independent decoder.
+`01234567`, version 1-M), the format and version information tables, and golden
+full-symbol matrices (standard and Micro QR) cross-checked with an independent
+decoder. `make coverage` reports ~88% expression coverage of the core (the
+coverage badge is a manual snapshot of that number).
 
 ## License
 

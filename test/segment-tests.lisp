@@ -41,6 +41,15 @@ type-error."
   (signals clqr:invalid-mode (clqr:make-numeric-segment #(48 49 50)))
   (signals clqr:invalid-mode (clqr:encode #(48 49 50) :mode :numeric)))
 
+(test kanji-error-paths
+  "A character outside JIS X 0208 signals INVALID-MODE, and an unavailable
+mapping table signals SHIFT-JIS-UNAVAILABLE."
+  ;; 🎉 (U+1F389) is not in JIS X 0208.
+  (signals clqr:invalid-mode (clqr:make-kanji-segment "🎉"))
+  ;; With an empty mapping table, string conversion cannot proceed.
+  (let ((clqr::*unicode->shift-jis* (make-hash-table)))
+    (signals clqr:shift-jis-unavailable (clqr::string-to-shift-jis "日"))))
+
 (test string-to-bytes-encoding
   ;; ISO-8859-1 (one byte per character) while every character fits in a byte,
   ;; including Latin-1 characters such as é (U+00E9 = 233) ...

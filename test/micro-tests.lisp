@@ -78,6 +78,21 @@
   ;; Micro QR has no :h level.
   (signals clqr:clqr-error (clqr:encode-micro "1" :version 4 :error-correction :h)))
 
+(test micro-forced-and-auto-modes
+  "Forced Byte/Kanji modes and automatic mode selection for Micro QR."
+  (is (equal '(:byte) (clqr:qr-mode (clqr:encode-micro "Hi" :version 3 :mode :byte))))
+  (is (equal '(:kanji) (clqr:qr-mode (clqr:encode-micro "日本" :version 4 :mode :kanji))))
+  (is (equal '(:numeric) (clqr:qr-mode (clqr:encode-micro "123"))))
+  (is (equal '(:alphanumeric) (clqr:qr-mode (clqr:encode-micro "ABC"))))
+  (is (equal '(:byte) (clqr:qr-mode (clqr:encode-micro "hello!")))))
+
+(test micro-invalid-arguments
+  (signals clqr:invalid-version (clqr:encode-micro "1" :version 5))
+  (signals clqr:invalid-mask (clqr:encode-micro "1" :mask 5))
+  (signals clqr:invalid-error-correction (clqr:encode-micro "1" :error-correction :h))
+  (signals clqr:data-too-long
+    (clqr:encode-micro (make-string 100 :initial-element #\1) :mode :numeric)))
+
 (test micro-format-information-matches-table
   "A couple of Micro format-info values (ISO Table C.2 / segno FORMAT_INFO_MICRO)."
   (is (= 17477 (clqr::micro-format-information 0 0)))   ; #x4445

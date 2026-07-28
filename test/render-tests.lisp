@@ -38,6 +38,18 @@ made of upper-half blocks, never full blocks."
     (is (not (find #\FULL_BLOCK (car (last lines))))
         "final line must not contain a phantom full block")))
 
+(test render-text-ascii-style
+  "The :ascii style uses two characters per module and one text line per module
+row (no half-block packing)."
+  (let* ((qr (clqr:encode "01234567"))
+         (qz 2)
+         (dim (+ (clqr:qr-size qr) (* 2 qz)))
+         (out (render-to-string #'clqr.render:render-text qr
+                                :quiet-zone qz :style :ascii)))
+    (is (= dim (count #\Newline out)))
+    (is (search "##" out))
+    (is (not (find #\FULL_BLOCK out)))))
+
 (test render-svg-structure
   (let ((out (render-to-string #'clqr.render:render-svg (clqr:encode "svg test"))))
     (is (search "<svg" out))

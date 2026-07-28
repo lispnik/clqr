@@ -7,7 +7,7 @@
 
 (in-package #:clqr.cli)
 
-(defparameter +version+ "0.2.0")
+(defparameter +version+ "0.3.0")
 
 ;;; ---------------------------------------------------------------------------
 ;;; Option parsing helpers

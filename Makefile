@@ -14,7 +14,7 @@ REQUIRE    := --eval '(require :asdf)'
 REGISTRY   := --eval '(asdf:initialize-source-registry (list :source-registry (list :tree (uiop:getcwd)) :inherit-configuration))'
 BIN        := bin/clqr
 
-.PHONY: all build test coverage man completions deps clean help
+.PHONY: all build test coverage conformance man completions deps clean help
 
 all: build
 
@@ -39,6 +39,10 @@ test:
 ## coverage: run the suite under sb-cover and write coverage/ HTML report
 coverage:
 	$(LISP) $(SBCL_FLAGS) $(REQUIRE) $(REGISTRY) --load test/coverage.lisp
+
+## conformance: encode + decode round-trip (needs pip: zxing-cpp pillow numpy)
+conformance: $(BIN)
+	python3 test/conformance.py $(BIN)
 
 ## man: generate the clqr.1 man page (via clingon)
 man:

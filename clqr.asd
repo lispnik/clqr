@@ -2,7 +2,7 @@
 
 (defsystem "clqr"
   :description "Pure Common Lisp, ISO/IEC 18004 conformant QR code encoder."
-  :version "0.2.0"
+  :version "0.3.0"
   :author "Matthew Kennedy"
   :license "MIT"
   :homepage "https://github.com/lispnik/clqr"
@@ -31,7 +31,7 @@
 
 (defsystem "clqr/cli"
   :description "Command line driver for clqr."
-  :version "0.2.0"
+  :version "0.3.0"
   :author "Matthew Kennedy"
   :license "MIT"
   :depends-on ("clqr" "clingon")
@@ -46,7 +46,7 @@
 
 (defsystem "clqr/test"
   :description "Test suite for clqr."
-  :version "0.2.0"
+  :version "0.3.0"
   :author "Matthew Kennedy"
   :license "MIT"
   :depends-on ("clqr" "fiveam")

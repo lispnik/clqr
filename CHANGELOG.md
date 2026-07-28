@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-28
+
+### Added
+- `encode-structured-append` gained an `:eci` keyword.
+- An end-to-end conformance check (`test/conformance.py`, `make conformance`)
+  that encodes every mode / EC level / Micro QR / Structured Append and decodes
+  each back with an independent reader; it runs in CI.
+
+### Changed
+- Much faster encoding of large inputs: the segmenter is now an O(n·modes²)
+  forward dynamic program (was O(n²)) and penalty rule 3 uses a sliding-window
+  integer, with hot-loop type declarations. Measured: a version-40 encode 387→12
+  ms (~31×) and a 3000-digit encode 752→6 ms (~123×), with identical output.
+
 ### Fixed
 - A multi-agent audit surfaced and fixed twelve edge-case defects:
   - byte runs in the auto ECI-26 regime are now always UTF-8 (a lone Latin-1
@@ -62,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   produced as a native binary via `asdf:make` / `make`.
 - A FiveAM test suite with ISO worked-example vectors and a golden symbol matrix.
 
-[Unreleased]: https://github.com/lispnik/clqr/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lispnik/clqr/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/lispnik/clqr/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lispnik/clqr/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/lispnik/clqr/releases/tag/v0.1.0

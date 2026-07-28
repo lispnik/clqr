@@ -59,21 +59,28 @@ The two halves are deliberately independent:
 
 ## Installation
 
-`clqr` is distributed with [ocicl](https://github.com/ocicl/ocicl):
+Clone the repository into a directory on your ASDF source registry (for example
+`~/common-lisp/`), then load it:
 
 ```sh
-ocicl install clqr
+git clone https://github.com/lispnik/clqr ~/common-lisp/clqr
 ```
-
-Then load it with ASDF:
 
 ```lisp
 (asdf:load-system "clqr")
 ```
 
-The core system `clqr` has no dependencies. The command line system `clqr/cli`
-additionally uses [clingon](https://github.com/dnaeon/clingon); the test system
-`clqr/test` uses [FiveAM](https://github.com/lispci/fiveam).
+The core system `clqr` has **no dependencies**. The command line system
+`clqr/cli` additionally uses [clingon](https://github.com/dnaeon/clingon) and the
+test system `clqr/test` uses [FiveAM](https://github.com/lispci/fiveam); restore
+those with [ocicl](https://github.com/ocicl/ocicl):
+
+```sh
+cd ~/common-lisp/clqr && ocicl install    # fetches clingon + fiveam
+```
+
+(A future release aims to publish `clqr` itself to the ocicl registry so that
+`ocicl install clqr` fetches it directly.)
 
 ## Library usage
 

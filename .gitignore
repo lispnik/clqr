@@ -18,3 +18,5 @@
 # ocicl dependency cache and systems
 /ocicl/
 /systems/
+
+.DS_Store

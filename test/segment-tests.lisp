@@ -41,6 +41,12 @@ type-error."
   (signals clqr:invalid-mode (clqr:make-numeric-segment #(48 49 50)))
   (signals clqr:invalid-mode (clqr:encode #(48 49 50) :mode :numeric)))
 
+(test kanji-canonical-shift-jis
+  "Dual-mapped code points resolve to the canonical JIS X 0208 value, not the
+NEC-row-13 duplicate (audit finding)."
+  (is (= #x81E3 (clqr::shift-jis-value (code-char #x221A))))   ; √
+  (is (= #x81DF (clqr::shift-jis-value (code-char #x2261)))))  ; ≡
+
 (test kanji-error-paths
   "A character outside JIS X 0208 signals INVALID-MODE, and an unavailable
 mapping table signals SHIFT-JIS-UNAVAILABLE."

@@ -91,7 +91,10 @@
   (signals clqr:invalid-mask (clqr:encode-micro "1" :mask 5))
   (signals clqr:invalid-error-correction (clqr:encode-micro "1" :error-correction :h))
   (signals clqr:data-too-long
-    (clqr:encode-micro (make-string 100 :initial-element #\1) :mode :numeric)))
+    (clqr:encode-micro (make-string 100 :initial-element #\1) :mode :numeric))
+  ;; audit findings: mode / content type get typed clqr conditions, not raw errors.
+  (signals clqr:invalid-mode (clqr:encode-micro "123" :mode :foo))
+  (signals clqr:clqr-error (clqr:encode-micro 12345)))
 
 (test micro-format-information-matches-table
   "A couple of Micro format-info values (ISO Table C.2 / segno FORMAT_INFO_MICRO)."

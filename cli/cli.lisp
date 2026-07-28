@@ -146,8 +146,10 @@ character or binary per BINARY."
         (t (error "Invalid --fnc1: ~S (expected \"gs1\" or \"aim:N\")." value))))
 
 (defun indexed-path (path index)
-  "Insert -INDEX before PATH's extension (foo.svg -> foo-3.svg)."
-  (let ((dot (position #\. path :from-end t)))
+  "Insert -INDEX before PATH's extension (foo.svg -> foo-3.svg).  A dot inside a
+parent directory (foo.d/qr) is not treated as an extension."
+  (let* ((slash (position #\/ path :from-end t))
+         (dot (position #\. path :from-end t :start (if slash (1+ slash) 0))))
     (if dot
         (format nil "~A-~D~A" (subseq path 0 dot) index (subseq path dot))
         (format nil "~A-~D" path index))))
@@ -198,7 +200,9 @@ character or binary per BINARY."
          (output (clingon:getopt cmd :output))
          (binary (binary-output-p format (clingon:getopt cmd :pbm-format)))
          (sa (clingon:getopt cmd :structured-append)))
-    (when (and micro (or eci fnc1 (and sa (>= sa 2))))
+    (when (and sa (not (<= 2 sa 16)))
+      (error "--structured-append must be between 2 and 16."))
+    (when (and micro (or eci fnc1 sa))
       (error "Micro QR does not support ECI, FNC1 or Structured Append."))
     (cond
       (micro
@@ -213,7 +217,7 @@ character or binary per BINARY."
          (error "Structured Append with a binary PBM needs --output."))
        (let ((qrs (clqr:encode-structured-append
                    content :error-correction ecl :count sa :version version
-                           :mask mask :mode mode :fnc1 fnc1)))
+                           :mask mask :mode mode :eci eci :fnc1 fnc1)))
          (loop for qr in qrs
                for i from 1
                do (let ((path (and output (indexed-path output i))))

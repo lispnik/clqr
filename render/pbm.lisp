@@ -66,6 +66,8 @@
               :p1 (plain ASCII, needs a character STREAM).
 
 Returns QR."
+  (check-type quiet-zone (integer 0))
+  (check-type module-size (integer 1))
   (ecase format
     (:p1 (render-pbm-p1 qr stream quiet-zone module-size))
     (:p4 (render-pbm-p4 qr stream quiet-zone module-size))))

@@ -31,7 +31,11 @@ number of entries loaded, or NIL if the file could not be read."
               do (let* ((space (position #\Space line))
                         (sjis (parse-integer line :end space :radix 16))
                         (cp (parse-integer line :start (1+ space) :radix 16)))
-                   (setf (gethash cp *unicode->shift-jis*) sjis))))
+                   ;; Keep the first (canonical JIS X 0208, lower Shift-JIS value)
+                   ;; mapping for code points that are dual-mapped -- the file is
+                   ;; sorted ascending, so the canonical row precedes NEC duplicates.
+                   (unless (nth-value 1 (gethash cp *unicode->shift-jis*))
+                     (setf (gethash cp *unicode->shift-jis*) sjis)))))
     (hash-table-count *unicode->shift-jis*)))
 
 ;;; Populate the table when this file loads.  For a dumped image this runs at

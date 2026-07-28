@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A multi-agent audit surfaced and fixed twelve edge-case defects:
+  - byte runs in the auto ECI-26 regime are now always UTF-8 (a lone Latin-1
+    run the segmenter isolated was mis-encoded as ISO-8859-1);
+  - the segmentation cost model no longer over-counts Latin-1 characters in the
+    non-ECI regime (they cost 8 bits each, not a UTF-8 byte count);
+  - dual-mapped Kanji code points resolve to the canonical JIS X 0208 value;
+  - `encode-segments` / `encode-structured-append` reject a bad `:mask`, and
+    `encode-micro` rejects bad `:mode` / content, with typed conditions;
+  - `encode-structured-append` honours `:eci`;
+  - renderers reject negative quiet zones and non-positive module sizes, and the
+    SVG renderer escapes colour strings;
+  - the CLI honours `--eci` with `--structured-append`, rejects out-of-range
+    `--structured-append`, and fixes indexed output paths containing a dotted
+    directory.
+
 ## [0.2.0] - 2026-07-27
 
 ### Added

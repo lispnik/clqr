@@ -12,6 +12,7 @@
 :invert      swap dark and light (useful for light-background terminals).
 
 Returns QR."
+  (check-type quiet-zone (integer 0))
   (let* ((size (qr-size qr))
          (dim (+ size (* 2 quiet-zone))))
     (flet ((dark (row col)

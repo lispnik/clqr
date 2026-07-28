@@ -297,6 +297,10 @@ CONTENT           a string, or a sequence of (unsigned-byte 8) for byte mode.
     (error 'invalid-mask :datum mask))
   (unless (member error-correction '(:l :m :q))    ; Micro QR has no :h
     (error 'invalid-error-correction :datum error-correction))
+  (when (and mode (not (member mode '(:numeric :alphanumeric :byte :kanji))))
+    (error 'invalid-mode :datum mode))
+  (unless (or (stringp content) (typep content 'sequence))
+    (error 'invalid-mode :datum (list :content content)))
   (let ((mode (or mode (if (stringp content) (micro-auto-mode content) :byte))))
     ;; For a forced version, report mode / EC incompatibility precisely.
     (when version

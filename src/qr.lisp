@@ -112,7 +112,11 @@ self-describing), unless an explicit ECI was given."
          (multiple-value-bind (runs version)
              (optimal-runs-and-version content error-correction prefix-bits
                                        forced-version modes latin1-byte-only)
-           (values (append leading prefix (runs-to-segments content runs)) version))))
+           ;; Under ECI 26 every byte run must be UTF-8, even an all-Latin-1 run
+           ;; the DP happened to isolate.
+           (values (append leading prefix
+                           (runs-to-segments content runs (eql eci-number 26)))
+                   version))))
       (t                                ; a raw byte sequence -> single byte segment
        (let* ((segments (append leading (eci-prefix eci)
                                 (list (make-byte-segment content))))
@@ -121,6 +125,8 @@ self-describing), unless an explicit ECI was given."
 
 (defun %build-symbol (segments version error-correction mask)
   "Encode SEGMENTS at VERSION into a finished QR-CODE."
+  (when (and mask (not (typep mask '(integer 0 7))))
+    (error 'invalid-mask :datum mask))
   (let* ((data (segments-to-data-codewords segments version error-correction))
          (final (make-final-message data version error-correction)))
     (multiple-value-bind (modules chosen-mask)
@@ -198,12 +204,12 @@ is taken in its byte representation (ISO-8859-1 or UTF-8)."
           do (incf start len))))
 
 (defun encode-structured-append (content &key (error-correction :m) (count 2)
-                                            version mask mode fnc1)
+                                            version mask mode eci fnc1)
   "Encode CONTENT as a Structured Append sequence of COUNT symbols (2-16),
 returning a list of COUNT QR-CODE objects.  All symbols carry the same sequence
 parity so a reader can reassemble them.  CONTENT must be a string; it is split
 into COUNT roughly-equal pieces, each segmented independently.  The other
-keywords behave as in ENCODE and apply to every symbol."
+keywords (including :eci) behave as in ENCODE and apply to every symbol."
   (check-type count (integer 2 16))
   (unless (stringp content)
     (error 'invalid-mode :datum "structured append requires string content"))
@@ -214,5 +220,5 @@ keywords behave as in ENCODE and apply to every symbol."
           collect (let ((leading (cons (make-structured-append-segment index count parity)
                                        (fnc1-leading fnc1))))
                     (multiple-value-bind (segments symbol-version)
-                        (plan-encoding piece mode nil error-correction version leading)
+                        (plan-encoding piece mode eci error-correction version leading)
                       (%build-symbol segments symbol-version error-correction mask))))))

@@ -263,7 +263,11 @@ Latin-1 when LATIN1-BYTE-ONLY).  RUNS is a list of (MODE START END)."
           (loop for i from (1+ j) to n
                 while (char-supports-mode-p (char content (1- i)) mode latin1-byte-only)
                 do (let* ((data-bits (if (eq mode :byte)
-                                         (* 8 (- (aref byte-prefix i) (aref byte-prefix j)))
+                                         ;; Latin-1 byte runs emit one byte per
+                                         ;; character; UTF-8 runs use the byte count.
+                                         (if latin1-byte-only
+                                             (* 8 (- i j))
+                                             (* 8 (- (aref byte-prefix i) (aref byte-prefix j))))
                                          (mode-data-bits mode (- i j))))
                           (cost (+ (aref dp j) 4 (char-count-bits mode version) data-bits)))
                      (when (or (null (aref dp i)) (< cost (aref dp i)))
@@ -276,17 +280,22 @@ Latin-1 when LATIN1-BYTE-ONLY).  RUNS is a list of (MODE START END)."
                (setf i (car entry)))
       (values (aref dp n) runs))))
 
-(defun run-to-segment (content mode start end)
-  "Build the segment for the run CONTENT[START:END] in MODE."
+(defun run-to-segment (content mode start end byte-utf8)
+  "Build the segment for the run CONTENT[START:END] in MODE.  When BYTE-UTF8 is
+true, byte runs are encoded as UTF-8 (required when the symbol declares ECI 26),
+rather than by STRING-TO-BYTES' ISO-8859-1/UTF-8 heuristic."
   (let ((s (subseq content start end)))
     (ecase mode
       (:numeric (make-numeric-segment s))
       (:alphanumeric (make-alphanumeric-segment s))
-      (:byte (make-byte-segment s))
+      (:byte (make-byte-segment (if byte-utf8 (string-to-utf8 s) s)))
       (:kanji (make-kanji-segment s)))))
 
-(defun runs-to-segments (content runs)
-  (mapcar (lambda (run) (apply #'run-to-segment content run)) runs))
+(defun runs-to-segments (content runs byte-utf8)
+  (mapcar (lambda (run)
+            (destructuring-bind (mode start end) run
+              (run-to-segment content mode start end byte-utf8)))
+          runs))
 
 (defun version-group (version)
   (cond ((<= version 9) 0) ((<= version 26) 1) (t 2)))

@@ -65,6 +65,38 @@
     (is (<= (clqr:qr-version (clqr:encode s))
             (clqr:qr-version (clqr:encode s :mode :byte))))))
 
+(test eci-regime-byte-runs-are-utf8
+  "Under the auto ECI-26 regime, every byte run (even a lone all-Latin-1 run the
+DP isolates) is UTF-8, not ISO-8859-1 (audit finding)."
+  (let* ((content (format nil "~C0000000000~C" (code-char #x20AC) (code-char #xE9)))
+         (segs (values (clqr::plan-encoding content nil nil :m nil)))
+         (byte-runs (loop for s in segs
+                          when (eq (clqr::segment-mode s) :byte)
+                          collect (coerce (clqr::segment-data s) 'list))))
+    (is (member '(195 169) byte-runs :test #'equal))    ; é as UTF-8 C3 A9
+    (is (not (member '(233) byte-runs :test #'equal))))) ; never bare 0xE9
+
+(test latin1-byte-cost-not-over-counted
+  "Latin-1 high characters cost 8 bits each in the no-ECI regime, so 17 of them
+fit version 1-L (audit finding: was spuriously data-too-long)."
+  (is (= 1 (clqr:qr-version
+            (clqr:encode (make-string 17 :initial-element (code-char 233))
+                         :error-correction :l :version 1)))))
+
+(test mask-validated-on-all-entry-points
+  "encode-segments and encode-structured-append reject a bad mask with
+CLQR:INVALID-MASK (audit finding: raw case-failure before)."
+  (signals clqr:invalid-mask
+    (clqr:encode-segments (list (clqr:make-byte-segment #(65))) :mask 8))
+  (signals clqr:invalid-mask
+    (clqr:encode-structured-append "hi there friends" :mask 8)))
+
+(test structured-append-accepts-eci
+  "encode-structured-append honours :eci (audit finding: was silently dropped)."
+  (let ((qrs (clqr:encode-structured-append "hello world data here" :count 2 :eci 26)))
+    (is (= 2 (length qrs)))
+    (is (every #'clqr:qr-code-p qrs))))
+
 (test kanji-eci-regime
   "Kanji mode and a UTF-8 byte ECI are never mixed: a non-Kanji character above
 Latin-1 forces UTF-8 bytes under ECI (no Kanji); Kanji + ASCII stays Kanji."

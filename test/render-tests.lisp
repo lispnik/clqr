@@ -63,6 +63,23 @@ row (no half-block packing)."
                                :title "A & B <menu>")))
     (is (search "<title>A &amp; B &lt;menu&gt;</title>" out))))
 
+(test render-svg-escapes-colours
+  "Foreground/background colours are escaped so a quote cannot break out of the
+attribute (audit finding: injection vector)."
+  (let ((out (render-to-string #'clqr.render:render-svg (clqr:encode "x")
+                               :foreground "#000\" onload=\"x")))
+    (is (not (search "onload=\"x" out)))
+    (is (search "&quot;" out))))
+
+(test render-validates-dimensions
+  "Negative quiet-zone and non-positive module-size are rejected, not silently
+mis-rendered (audit findings)."
+  (let ((qr (clqr:encode "x")))
+    (signals error (clqr.render:render-text qr :quiet-zone -1))
+    (signals error (clqr.render:render-svg qr :quiet-zone -1))
+    (signals error (clqr.render:render-svg qr :module-size 0))
+    (signals error (clqr.render:render-pbm qr :module-size 0))))
+
 (test render-pbm-p1-header-and-size
   (let* ((qr (clqr:encode "01234567"))
          (qz 4) (ms 3)

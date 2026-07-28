@@ -3,6 +3,10 @@
 [![CI](https://github.com/lispnik/clqr/actions/workflows/ci.yml/badge.svg)](https://github.com/lispnik/clqr/actions/workflows/ci.yml)
 [![coverage](https://img.shields.io/badge/coverage-88%25-brightgreen)](#development)
 
+<p align="center">
+  <img src="clqr.svg" alt="clqr — scans to this repository" width="180">
+</p>
+
 A pure Common Lisp **QR Code encoder** for Model 2 and Micro QR symbols,
 following [ISO/IEC 18004](https://www.iso.org/standard/83389.html) (the current
 edition is 2024; the symbology clqr implements is unchanged from the 2015 tables

@@ -79,8 +79,10 @@ those with [ocicl](https://github.com/ocicl/ocicl):
 cd ~/common-lisp/clqr && ocicl install    # fetches clingon + fiveam
 ```
 
-(A future release aims to publish `clqr` itself to the ocicl registry so that
-`ocicl install clqr` fetches it directly.)
+Publishing `clqr` itself to the ocicl registry (so that `ocicl install clqr`
+fetches it directly) has been
+[requested](https://github.com/ocicl/request-system-additions-here/issues/61) and
+is pending.
 
 ## Library usage
 

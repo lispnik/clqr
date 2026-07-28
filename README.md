@@ -4,7 +4,7 @@
 [![coverage](https://img.shields.io/badge/coverage-88%25-brightgreen)](#development)
 
 <p align="center">
-  <img src="logo.svg" alt="clqr — QR code for this repository" width="300">
+  <img src="logo.svg" alt="clqr — QR code for this repository" width="600">
 </p>
 
 A pure Common Lisp **QR Code encoder** for Model 2 and Micro QR symbols,

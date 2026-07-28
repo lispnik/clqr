@@ -4,7 +4,9 @@
 [![coverage](https://img.shields.io/badge/coverage-88%25-brightgreen)](#development)
 
 A pure Common Lisp **QR Code encoder** for Model 2 and Micro QR symbols,
-following [ISO/IEC 18004](https://www.iso.org/standard/62021.html).
+following [ISO/IEC 18004](https://www.iso.org/standard/83389.html) (the current
+edition is 2024; the symbology clqr implements is unchanged from the 2015 tables
+it is validated against).
 
 `clqr` has no external dependencies for its core: it computes the entire symbol —
 Galois field arithmetic, Reed-Solomon error correction, block interleaving,

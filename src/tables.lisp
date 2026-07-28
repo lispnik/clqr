@@ -163,9 +163,20 @@ are excluded from the recorded mode list of a symbol.")
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:"
   "The 45 alphanumeric mode characters; index is the mode value.")
 
+(defparameter +alphanumeric-values+
+  (let ((table (make-array 128 :initial-element nil)))
+    (loop for ch across +alphanumeric-chars+
+          for i from 0
+          do (setf (aref table (char-code ch)) i))
+    table)
+  "Reverse lookup (char-code -> mode value) for the alphanumeric set.")
+
+(declaim (inline alphanumeric-value))
 (defun alphanumeric-value (char)
-  "The alphanumeric mode value for CHAR, or NIL if CHAR is not encodable."
-  (position char +alphanumeric-chars+))
+  "The alphanumeric mode value for CHAR, or NIL if CHAR is not encodable.  Uses
+a direct code-point lookup rather than a linear scan."
+  (let ((code (char-code char)))
+    (and (< code 128) (svref +alphanumeric-values+ code))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Error correction block structure (ISO Table 9)

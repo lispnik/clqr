@@ -176,7 +176,10 @@ skipping function modules.  Leftover modules stay light (remainder bits)."
 
 (defun apply-mask (modules func size mask)
   "Flip every non-function module of MODULES where MASK's condition holds."
+  (declare (type (simple-array bit (* *)) modules func) (type fixnum size)
+           (optimize (speed 3) (safety 1)))
   (let ((pred (mask-predicate mask)))
+    (declare (type function pred))
     (dotimes (r size)
       (dotimes (c size)
         (when (and (zerop (mref func r c)) (funcall pred r c))
@@ -193,39 +196,50 @@ skipping function modules.  Leftover modules stay light (remainder bits)."
 
 (defun penalty-line-runs (modules size row-major)
   "Rule 1 penalty for rows (ROW-MAJOR true) or columns (false)."
-  (let ((total 0))
+  (declare (type (simple-array bit (* *)) modules) (type fixnum size)
+           (optimize (speed 3) (safety 1)))
+  (let ((total 0) (n1 +penalty-n1+))
+    (declare (type fixnum total n1))
     (dotimes (a size)
-      (let ((run 1) (prev nil))
+      (let ((run 1) (prev -1))
+        (declare (type fixnum run prev))
         (dotimes (b size)
           (let ((v (if row-major (mref modules a b) (mref modules b a))))
             (cond ((eql v prev) (incf run)
-                   (cond ((= run 5) (incf total +penalty-n1+))
+                   (cond ((= run 5) (incf total n1))
                          ((> run 5) (incf total))))
                   (t (setf run 1 prev v)))))))
     total))
 
-(defparameter +finder-pattern-a+ #*10111010000)
-(defparameter +finder-pattern-b+ #*00001011101)
+;;; Rule 3 patterns as 11-bit integers, most significant bit first:
+;;;   1:1:3:1:1 finder shape with a 4-module light margin, either side.
+(defconstant +finder-pattern-a+ #b10111010000)
+(defconstant +finder-pattern-b+ #b00001011101)
 
 (defun penalty-finder-lines (modules size row-major)
   "Rule 3 penalty: occurrences of the 1:1:3:1:1 pattern with a 4-module light
-margin, scanned along rows or columns."
+margin, scanned along rows or columns using an 11-bit sliding window."
+  (declare (type (simple-array bit (* *)) modules) (type fixnum size)
+           (optimize (speed 3) (safety 1)))
   (let ((total 0))
+    (declare (type fixnum total))
     (dotimes (a size)
-      (loop for start from 0 to (- size 11)
-            do (let ((match-a t) (match-b t))
-                 (dotimes (k 11)
-                   (let ((v (if row-major (mref modules a (+ start k))
-                                (mref modules (+ start k) a))))
-                     (unless (= v (aref +finder-pattern-a+ k)) (setf match-a nil))
-                     (unless (= v (aref +finder-pattern-b+ k)) (setf match-b nil))))
-                 (when match-a (incf total +penalty-n3+))
-                 (when match-b (incf total +penalty-n3+)))))
+      (let ((w 0))
+        (declare (type (unsigned-byte 11) w))
+        (dotimes (b size)
+          (let ((v (if row-major (mref modules a b) (mref modules b a))))
+            (setf w (logand (logior (ash w 1) v) #x7FF))
+            (when (>= b 10)
+              (when (= w +finder-pattern-a+) (incf total +penalty-n3+))
+              (when (= w +finder-pattern-b+) (incf total +penalty-n3+)))))))
     total))
 
 (defun penalty-score (modules size)
   "Total masking penalty for MODULES (ISO 8.8.2, four rules)."
+  (declare (type (simple-array bit (* *)) modules) (type fixnum size)
+           (optimize (speed 3) (safety 1)))
   (let ((total 0) (dark 0))
+    (declare (type fixnum total dark))
     ;; Rule 1: runs in rows and columns.
     (incf total (penalty-line-runs modules size t))
     (incf total (penalty-line-runs modules size nil))

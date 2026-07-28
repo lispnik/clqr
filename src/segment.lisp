@@ -224,61 +224,83 @@ Shared by the QR and Micro QR encoders, which use different headers."
   (let ((cp (char-code char)))
     (cond ((< cp #x80) 1) ((< cp #x800) 2) ((< cp #x10000) 3) (t 4))))
 
-(defun char-supports-mode-p (char mode &optional latin1-byte-only)
-  "True if CHAR can be encoded in MODE.  When LATIN1-BYTE-ONLY is true, byte mode
-only accepts single-byte (ISO-8859-1) characters, so that multi-byte UTF-8 is
-never emitted in a byte run without an accompanying ECI."
-  (ecase mode
-    (:numeric (char<= #\0 char #\9))
-    (:alphanumeric (and (alphanumeric-value char) t))
-    (:byte (or (not latin1-byte-only) (< (char-code char) 256)))
-    (:kanji (and (shift-jis-value char) t))))
+;;; The segmenter runs a forward dynamic program in O(n * modes^2): for each
+;;; character it tracks, per ending mode, the minimum cost to encode the prefix
+;;; with that character in that mode.  Costs are accumulated in sixths of a bit
+;;; so the fractional numeric (10/3 bits/char) and alphanumeric (11/2) rates are
+;;; exact -- rounding a closed segment up to a whole bit reproduces the exact
+;;; segment length, since ceil(10*len/3) and ceil(11*len/2) are the true widths.
 
-(defun mode-data-bits (mode length)
-  "Data bits for a run of LENGTH characters in MODE (byte mode is handled with
-UTF-8 byte counts elsewhere, so it is not accepted here)."
-  (ecase mode
-    (:numeric (+ (* 10 (floor length 3)) (case (mod length 3) (0 0) (1 4) (2 7))))
-    (:alphanumeric (+ (* 11 (floor length 2)) (* 6 (mod length 2))))
-    (:kanji (* 13 length))))
+(defparameter +dp-modes+ #(:numeric :alphanumeric :byte :kanji)
+  "Mode order used by the segmentation DP; index is the mode number 0-3.")
 
 (defun optimal-runs (content version modes latin1-byte-only)
   "Return (values TOTAL-BITS RUNS) for the minimal-bit segmentation of the
 string CONTENT at VERSION, choosing among MODES (byte mode restricted to
 Latin-1 when LATIN1-BYTE-ONLY).  RUNS is a list of (MODE START END)."
-  (let* ((n (length content))
-         (dp (make-array (1+ n) :initial-element nil))    ; dp[i] = min bits or NIL
-         (back (make-array (1+ n) :initial-element nil))  ; back[i] = (start . mode)
-         (byte-prefix (make-array (1+ n) :initial-element 0)))
+  (let ((n (length content))
+        (inf most-positive-fixnum))
     (when (zerop n)
       (return-from optimal-runs
         (values (+ 4 (char-count-bits :byte version)) (list (list :byte 0 0)))))
-    (setf (aref dp 0) 0)
-    (dotimes (k n)
-      (setf (aref byte-prefix (1+ k))
-            (+ (aref byte-prefix k) (utf8-char-length (char content k)))))
-    (dotimes (j n)
-      (when (aref dp j)
-        (dolist (mode modes)
-          (loop for i from (1+ j) to n
-                while (char-supports-mode-p (char content (1- i)) mode latin1-byte-only)
-                do (let* ((data-bits (if (eq mode :byte)
-                                         ;; Latin-1 byte runs emit one byte per
-                                         ;; character; UTF-8 runs use the byte count.
-                                         (if latin1-byte-only
-                                             (* 8 (- i j))
-                                             (* 8 (- (aref byte-prefix i) (aref byte-prefix j))))
-                                         (mode-data-bits mode (- i j))))
-                          (cost (+ (aref dp j) 4 (char-count-bits mode version) data-bits)))
-                     (when (or (null (aref dp i)) (< cost (aref dp i)))
-                       (setf (aref dp i) cost
-                             (aref back i) (cons j mode))))))))
-    (let ((runs '()) (i n))
-      (loop while (> i 0)
-            for entry = (aref back i)
-            do (push (list (cdr entry) (car entry) i) runs)
-               (setf i (car entry)))
-      (values (aref dp n) runs))))
+    ;; head[d] = header cost (mode indicator + char count) in 1/6-bit units, or
+    ;; INF when mode d is not among MODES.
+    (let ((head (make-array 4))
+          (prev (make-array 4))
+          (char-modes (make-array (list n 4) :initial-element 0)))
+      (dotimes (d 4)
+        (let ((m (svref +dp-modes+ d)))
+          (setf (svref head d)
+                (if (member m modes) (* 6 (+ 4 (char-count-bits m version))) inf))))
+      ;; A segment of each allowed mode is notionally "open" (header paid, zero
+      ;; characters), so the first character simply extends it.
+      (dotimes (d 4) (setf (svref prev d) (svref head d)))
+      (dotimes (i n)
+        (let ((c (char content i))
+              (cur (make-array 4 :initial-element inf)))
+          (flet ((incr (d)                 ; cost in 1/6 bits of adding char C in mode D
+                   (ecase d
+                     (0 20)                ; numeric  10/3 * 6
+                     (1 33)                ; alphanumeric 11/2 * 6
+                     (2 (* 48 (if latin1-byte-only 1 (utf8-char-length c)))) ; byte 8*bytes*6
+                     (3 78)))              ; kanji 13 * 6
+                 (supports (d)
+                   (case d
+                     (0 (char<= #\0 c #\9))
+                     (1 (and (alphanumeric-value c) t))
+                     (2 (or (not latin1-byte-only) (< (char-code c) 256)))
+                     (3 (and (shift-jis-value c) t)))))
+            (dotimes (d 4)
+              (when (and (< (svref head d) inf) (supports d))
+                (let ((best inf) (best-src d)
+                      (add (incr d)))
+                  ;; Extend the current mode-D segment.
+                  (when (< (svref prev d) inf)
+                    (setf best (+ (svref prev d) add)))
+                  ;; Or close the previous segment (round up to a whole bit) and
+                  ;; open a new mode-D segment.
+                  (dotimes (s 4)
+                    (when (< (svref prev s) inf)
+                      (let ((cost (+ (* 6 (ceiling (svref prev s) 6))
+                                     (svref head d) add)))
+                        (when (< cost best) (setf best cost best-src s)))))
+                  (setf (svref cur d) best
+                        (aref char-modes i d) best-src)))))
+          (setf prev cur)))
+      ;; Best ending mode, then backtrack to assign each character its mode.
+      (let ((best inf) (end 0))
+        (dotimes (d 4)
+          (when (< (svref prev d) best) (setf best (svref prev d) end d)))
+        (let ((assign (make-array n)) (cm end))
+          (loop for i from (1- n) downto 0
+                do (setf (aref assign i) cm
+                         cm (aref char-modes i cm)))
+          (let ((runs '()) (start 0))
+            (loop for i from 1 to n
+                  when (or (= i n) (/= (aref assign i) (aref assign (1- i))))
+                    do (push (list (svref +dp-modes+ (aref assign start)) start i) runs)
+                       (setf start i))
+            (values (ceiling best 6) (nreverse runs))))))))
 
 (defun run-to-segment (content mode start end byte-utf8)
   "Build the segment for the run CONTENT[START:END] in MODE.  When BYTE-UTF8 is

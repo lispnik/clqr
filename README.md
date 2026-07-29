@@ -59,30 +59,36 @@ The two halves are deliberately independent:
 
 ## Installation
 
-Clone the repository into a directory on your ASDF source registry (for example
-`~/common-lisp/`), then load it:
+`clqr` is available from the [ocicl](https://github.com/ocicl/ocicl) registry:
 
 ```sh
-git clone https://github.com/lispnik/clqr ~/common-lisp/clqr
+ocicl install clqr
 ```
+
+Then load it:
 
 ```lisp
 (asdf:load-system "clqr")
 ```
 
-The core system `clqr` has **no dependencies**. The command line system
-`clqr/cli` additionally uses [clingon](https://github.com/dnaeon/clingon) and the
-test system `clqr/test` uses [FiveAM](https://github.com/lispci/fiveam); restore
-those with [ocicl](https://github.com/ocicl/ocicl):
+Or clone it into a directory on your ASDF source registry:
 
 ```sh
-cd ~/common-lisp/clqr && ocicl install    # fetches clingon + fiveam
+git clone https://github.com/lispnik/clqr ~/common-lisp/clqr
 ```
 
-Publishing `clqr` itself to the ocicl registry (so that `ocicl install clqr`
-fetches it directly) has been
-[requested](https://github.com/ocicl/request-system-additions-here/issues/61) and
-is pending.
+The core system `clqr` has **no dependencies**. The command line system
+`clqr/cli` additionally uses [clingon](https://github.com/dnaeon/clingon) and the
+test system `clqr/test` uses [FiveAM](https://github.com/lispci/fiveam) (both
+fetched by ocicl).
+
+### Portability
+
+The `clqr` core is portable ANSI Common Lisp (only ASDF beyond the standard) and
+runs on any conforming implementation — **tested on SBCL and ECL**. The command
+line driver and the `bin/clqr` executable are developed and CI-tested on SBCL
+(building the binary uses `asdf:make`, and writing a binary PBM to standard
+output uses an SBCL-specific stream; every other path is portable).
 
 ## Library usage
 
